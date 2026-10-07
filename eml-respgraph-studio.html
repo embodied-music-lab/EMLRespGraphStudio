@@ -590,6 +590,7 @@ body.tab-edit .dr-group { padding: 6px 6px 8px; border-radius: 10px; background:
 }
 #filespanel[hidden], #askpanel[hidden] { display: none; }
 #askpanel { max-width: min(460px, calc(100vw - 32px)); }
+#askpanel .ask-title { font-weight: 600; }
 .fp-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .fp-row .lbl, .fp-grid .lbl { color: var(--text-hint); }
 .fp-grid { display: grid; grid-template-columns: max-content max-content max-content; gap: 6px 10px; align-items: center; }
@@ -9087,6 +9088,7 @@ ${name}`) || [...this.hqStreams.values()].some((s) => s.label === label && s.bas
   <span class="spacer"></span>
   <span class="meter rip-only" id="meter"><span class="dot live-dot"></span><b id="rate">–</b> frames/s</span>
   <div class="hdr-tools">
+    <button class="btn rec-only" id="fullbtn" title="Expand to full screen and hide all menu items. Press Esc or Shift+B to exit.">Full screen</button>
     <button class="btn" id="helpbtn" title="Open the quick start and the in-app manual (Shift+H)">Quick start/manual</button>
     <button class="btn" id="aboutbtn" title="App name, version and license">About</button>
     <button class="btn" id="keysbtn" title="List every keyboard shortcut and mouse action. Hovering any control also shows its key.">? Keys</button>
@@ -9104,7 +9106,7 @@ ${name}`) || [...this.hqStreams.values()].some((s) => s.label === label && s.bas
     <button class="btn" id="intervalbtn" title="Add an interval: the stretch you chose, saved in the take's TextGrid on the intervals tier, labeled with the next number. It goes to the take recording, the take just stopped, or in Edit the opened take. While a take records, drag over the part already recorded first: the take keeps recording. Click an interval to relabel or delete it; drag its edges or the band to move it.">Add interval</button>
     <button class="btn" id="quitbtn">Quit</button>
     <button class="btn rec-only" id="pause">Pause</button>
-    <button class="btn rec-only" id="clearwin" title="Clear the held display and its on-screen marks, and reset the timeline clock to 0. If a take is recording, this stops and saves it first, like pressing Stop. Leaves the display paused at 0; Resume starts the fresh timeline. Any take already saved is untouched.">Clear window</button>
+    <button class="btn rec-only" id="clearwin" title="Clear the held display and its on-screen marks, and reset the timeline clock to 0. If a take is recording, this stops and saves it first, like pressing Stop. Leaves the display paused at 0; Resume starts the fresh timeline. Any take already saved is untouched. If the timeline holds time that Save timeline has not saved, asks first whether to save it.">Clear window</button>
     <button class="btn rec-only" id="savetimeline" title="Save everything on the timeline right now (up to 30 minutes) as one take in the current session, with a TextGrid marking every mark and every take recorded in it. Never automatic.">Save timeline</button>
   </div>
 </header>
@@ -9354,6 +9356,7 @@ ${name}`) || [...this.hqStreams.values()].some((s) => s.label === label && s.bas
   </div>
 </div>
 <div id="askpanel" role="dialog" aria-labelledby="ask-msg" hidden>
+  <div class="fp-row ask-title" id="ask-title" hidden></div>
   <div class="fp-row" id="ask-msg"></div>
   <div class="fp-row" id="ask-btns"></div>
 </div>
@@ -9544,7 +9547,7 @@ function applyAppName(name) {
   document.title = appName;
   const brand = $("appbrand"); if (brand) brand.textContent = appName;
   const help = $("helppanel"); if (help) help.setAttribute("aria-label", `${appName} manual`);
-  const quit = $("quitbtn"); if (quit) quit.title = `Close ${appName}. Saves any take in progress.`;
+  const quit = $("quitbtn"); if (quit) quit.title = `Close ${appName}. Saves any take in progress. If the timeline holds time that Save timeline has not saved, asks first whether to save it.`;
   try { keyTitles(); } catch (e) {}                   // before the script has defined SHORTCUTS, setupControls adds the keys
 }
 applyAppName();
@@ -15408,6 +15411,7 @@ function setupControls() {
   $("clearwin").onclick = clearWindow;
   $("savetimeline").onclick = saveTimeline;
   $("bfexit").onclick = toggleBiofeedback;
+  $("fullbtn").onclick = toggleBiofeedback;   // the Full screen button and Shift+B do the same thing
   $("nowat").querySelectorAll("button").forEach(b => b.onclick = () => { st.nowFrac = +b.dataset.v; sync(); });
   $("ch1").querySelectorAll("button").forEach(b => b.onclick = () => setCh1(b.dataset.v));
   $("syncb").querySelectorAll("button").forEach(b => b.onclick = () => { st.syncBeep = b.dataset.v === "on"; sync(); });
@@ -18645,6 +18649,7 @@ async function togglePause() {
 // rather than jumping to whatever the device has produced since.
 async function clearWindow() {
   if (st.review) return;                   // the live display only (Record)
+  if (!(await timelineGuard(TIMELINE_GUARD.clearAction))) return;   // unsaved timeline: ask first
   if (st.play) stopPlay();
   if (st.status && st.status.recording) {
     if (st.clearing) return;               // a second press while the Stop is still on its way
@@ -18664,6 +18669,7 @@ function liveWindowEmpty(more) {
     st.playFrom = null; st.playSel = null; st.axisSel = null;
     if (more) more();
   });
+  st.timelineSavedHi = 0;     // nothing on the new timeline has been saved by Save timeline
   st.volLivePosted = false;   // the live timeline starts over: rows logged for the last one stay until a new live attempt replaces them
   hqClearHeld();
   buildLanes();
@@ -18704,6 +18710,81 @@ async function uploadTimelineBuffer(folder, buf) {
   }
   return name;
 }
+// ---------------------------------------------------------------- Save-timeline guard (Ian, 7 Oct)
+// Quit and Clear window both throw away the live timeline. When it holds time that Save timeline has not saved, they first ask in the
+// page (askChoice, not window.confirm). Every word of the question is here; the sentence is built from these pieces.
+const TIMELINE_GUARD = {
+  title: "Save your timeline first?",
+  quitAction: "Quit", clearAction: "Clear window",
+  sentence: (action, span) => `${action} discards ${span} of timeline that Save timeline has not saved.`,
+  save: "Save timeline", discard: "Don't save", cancel: "Cancel",
+  minUnsavedS: 1,   // less unsaved time than this (the edge of a take, a moment since the last save) asks nothing
+};
+// Seconds of the live timeline that nothing holds: the time after the last Save timeline, minus the time inside a take already
+// saved (its files hold it) and inside the take now recording (Stop saves it). 0 when nothing would be lost.
+function unsavedTimelineSeconds() {
+  const live = st.liveStash || st;
+  const lo = Math.max(0, live.first, st.timelineSavedHi || 0), hi = live.total;
+  if (!live.rate || hi - lo <= 0) return 0;
+  const held = (live.recordedBands || []).filter(b => b.timeline === st.timeline).map(b => [b.s0, b.s1]);
+  const rs = recStartSession();
+  if (rs != null) held.push([rs, hi]);
+  let at = lo, left = 0;
+  for (const [a, b] of held.sort((x, y) => x[0] - y[0])) {
+    if (a > at) left += Math.min(a, hi) - at;
+    at = Math.max(at, b);
+    if (at >= hi) break;
+  }
+  if (at < hi) left += hi - at;
+  const secs = left / live.rate;
+  return secs >= TIMELINE_GUARD.minUnsavedS ? secs : 0;
+}
+function timelineSpanText(secs) {
+  const m = Math.floor(secs / 60), r = Math.round(secs - m * 60);
+  return m > 0 ? `${m} min ${r} s` : `${Math.max(1, r)} s`;
+}
+// A question with buttons in the shared #askpanel. buttons: [{label, value, primary}]; Esc resolves cancelValue, Enter the primary button
+// (a focused button takes its own Enter). Resolves with the value of the button used.
+function askChoice(title, message, buttons, cancelValue) {
+  return new Promise((resolve) => {
+    $("ask-title").textContent = title; $("ask-title").hidden = !title;
+    $("ask-msg").textContent = message;
+    const row = $("ask-btns"); row.innerHTML = "";
+    const finish = (value) => { removeEventListener("keydown", onKeyDown, true); $("askpanel").hidden = true; resolve(value); };
+    let primary = null;
+    for (const b of buttons) {
+      const el = document.createElement("button"); el.className = "btn" + (b.primary ? " btn-primary" : ""); el.textContent = b.label;
+      el.onclick = () => finish(b.value); row.append(el); if (b.primary) primary = el;
+    }
+    function onKeyDown(e) {
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(cancelValue); }
+      else if (e.key === "Enter" && primary && !(e.target instanceof HTMLButtonElement && row.contains(e.target))) { e.preventDefault(); e.stopPropagation(); primary.click(); }
+    }
+    addEventListener("keydown", onKeyDown, true);
+    $("askpanel").hidden = false; (primary || row.firstChild).focus();
+  });
+}
+// Resolves true when `action` (Quit or Clear window) may go on: nothing is unsaved, or the person chose Save timeline and it saved,
+// or chose Don't save. Resolves false on Cancel, Esc, or a save that failed (saveTimeline has toasted why). While a take records,
+// Stop (which both actions already do) saves the take first; the question is asked only when timeline outside that take is unsaved,
+// and Save timeline then stops the take before saving, since it does not run during a take.
+async function timelineGuard(action) {
+  if (st.guardBusy) return false;
+  const secs = unsavedTimelineSeconds();
+  if (!secs) return true;
+  st.guardBusy = true;
+  try {
+    const G = TIMELINE_GUARD;
+    const pick = await askChoice(G.title, G.sentence(action, timelineSpanText(secs)),
+      [{ label: G.save, value: "save", primary: true }, { label: G.discard, value: "discard" }, { label: G.cancel, value: "cancel" }], "cancel");
+    if (pick === "discard") return true;
+    if (pick !== "save") return false;
+    if (st.status && st.status.recording) {
+      try { await doStop(); } catch (e) { reportFailure("The take could not be stopped", e); return false; }
+    }
+    return await saveTimeline();
+  } finally { st.guardBusy = false; }
+}
 // ---------------------------------------------------------------- Save timeline
 // (Called Save session before 0.7.7, when "session" came to mean the folder a working session's takes are in.)
 // P10 (Ian, ~9:21 AM EDT): saves everything currently on the live timeline -- the display's own
@@ -18715,14 +18796,14 @@ async function uploadTimelineBuffer(folder, buf) {
 // then -- syncRecControls), and reads the live buffer set even while a take is open for review
 // (st.liveStash), since the live buffer keeps filling in the background the whole time (withLive).
 async function saveTimeline() {
-  if (st.status && st.status.recording) { toast("Stop the take before saving the timeline."); return; }
-  if (st.timelineSaving) return;
+  if (st.status && st.status.recording) { toast("Stop the take before saving the timeline."); return false; }
+  if (st.timelineSaving) return false;
   const live = st.liveStash || st;
   const lo = Math.max(0, live.first), hi = live.total, n = hi - lo;
-  if (n <= 0) { toast("Nothing on the timeline yet to save."); return; }
+  if (n <= 0) { toast("Nothing on the timeline yet to save."); return false; }
   // With no band the timeline holds no belt data: the saved take is the interface audio's span (frames and rate of the interface), nothing is uploaded.
   const noBand = !hardwareHasBand();
-  if (noBand && !hqSaveReady(lo, hi)) { toast("No interface audio is held on the timeline to save."); return; }
+  if (noBand && !hqSaveReady(lo, hi)) { toast("No interface audio is held on the timeline to save."); return false; }
   st.timelineSaving = true; syncRecControls();
   try {
     const rate = live.rate;
@@ -18781,15 +18862,18 @@ async function saveTimeline() {
         sum: sumBody, marks, intervals, recordings: recs, truncated, ...liveFormulaFields(rw, volFitActive()) };
     }
     const s = await post("/save_timeline", body);   // the server names the take timeline_<date>_<time>
-    if (s.error) { toast(`Could not save the timeline: ${s.error}`); return; }
+    if (s.error) { toast(`Could not save the timeline: ${s.error}`); return false; }
     const base = truncated
       ? `Timeline saved as ${s.name}. The buffer only holds ${(durS / 60).toFixed(1)} min; earlier time was not kept.`
       : `Timeline saved as ${s.name}.`;
     toast(base);
+    st.timelineSavedHi = hi;                              // the timeline up to here is saved (see unsavedTimelineSeconds)
     for (const m of live.liveMarks) if (m.frame >= lo && m.frame <= hi) m.savedIn = s.name;   // now the saved timeline's marks (see ctxMarks)
     if (hqSaveReady(lo, hi)) toast(`${base} ${await hqSaveTimeline(s.name, folder, lo, hi, live)}`);
+    return true;
   } catch (e) {
     toast(`Could not save the timeline: ${e.message}`);
+    return false;
   } finally {
     st.timelineSaving = false; syncRecControls();
   }
@@ -20324,14 +20408,19 @@ es.addEventListener("config", (e) => {
 es.addEventListener("status", (e) => applyStatus(JSON.parse(e.data)));
 es.onmessage = (e) => { if (st.cfg) ingest(e.data); };
 es.onerror = () => { if (!st.quit) $("source").textContent = `Disconnected. Is ${appName} still running?`; };
-// Quit: first click arms, second click within 3 s stops the device and the app.
+// Quit: first click arms, second click within 3 s stops the device and the app. With unsaved timeline the first click asks instead (timelineGuard).
 $("quitbtn").onclick = async () => {
   const b = $("quitbtn");
-  if (!b.dataset.armed) {
+  if (st.quit || st.guardBusy) return;
+  // Unsaved timeline: the question stands in for the second click, so it costs nothing extra (an armed button asks nothing more).
+  const asked = !b.dataset.armed && unsavedTimelineSeconds() > 0;
+  if (asked && !(await timelineGuard(TIMELINE_GUARD.quitAction))) return;
+  if (!asked && !b.dataset.armed) {
     b.dataset.armed = "1"; b.textContent = "Click again to quit";
     setTimeout(() => { delete b.dataset.armed; if (!st.quit) b.textContent = "Quit"; }, 3000);
     return;
   }
+  delete b.dataset.armed;
   st.quit = true; b.disabled = true; b.textContent = "Quitting…";
   try { await fetch("/quit", { method: "POST" }); } catch (e) {}
   es.close();
@@ -20814,6 +20903,7 @@ $("sy-choose-path").onclick = async () => {
 // with {key: path} for the files chosen) or Cancel (resolves null).
 function askTakeFiles(message, picks) {
   return new Promise((resolve) => {
+    $("ask-title").hidden = true;
     $("ask-msg").textContent = message;
     const row = $("ask-btns"); row.innerHTML = "";
     const chosen = {}, add = (label, onclick) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = label; b.onclick = onclick; row.append(b); return b; };
