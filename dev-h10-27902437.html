@@ -1,0 +1,2375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Polar H10 test bench</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --ink: #1d2129; --muted: #5d6573; --line: #d9dde4; --grid: #e6e9ee;
+  --accent: #c2410c; --breath: #0b6e8a; --x: #c0392b; --y: #2e8b57; --z: #2f5fd0; --warn: #a15c00; --btn: #eef1f6;
+  --ecg: #b4232a; --hr: #c2410c; --rr: #6b46c1; --ok: #2e7d4f; --bad: #b3261e;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14171c; --panel: #1d2128; --ink: #e8ebf0; --muted: #9aa3b2; --line: #343b47; --grid: #2a303a;
+    --accent: #ff9b5e; --breath: #4fc3e0; --x: #ff7b6b; --y: #5fd08c; --z: #7ea3ff; --warn: #f0b34a; --btn: #2a303a;
+    --ecg: #ff7b6b; --hr: #ff9b5e; --rr: #b79cff; --ok: #5fd08c; --bad: #ff8a80;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #14171c; --panel: #1d2128; --ink: #e8ebf0; --muted: #9aa3b2; --line: #343b47; --grid: #2a303a;
+  --accent: #ff9b5e; --breath: #4fc3e0; --x: #ff7b6b; --y: #5fd08c; --z: #7ea3ff; --warn: #f0b34a; --btn: #2a303a;
+  --ecg: #ff7b6b; --hr: #ff9b5e; --rr: #b79cff; --ok: #5fd08c; --bad: #ff8a80;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.page { max-width: 1180px; margin: 0 auto; padding: 14px 16px 24px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+h1 { font-size: 19px; margin: 0; }
+h2 { font-size: 14px; margin: 0 0 6px; }
+p { margin: 0; }
+.sub, .note { color: var(--muted); }
+.note { font-size: 12.5px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+.head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; align-items: baseline; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 8px; }
+.controls .grp { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+button { font: inherit; padding: 6px 12px; border: 1px solid var(--line); background: var(--btn); color: var(--ink); border-radius: 6px; cursor: pointer; }
+button.primary { background: var(--breath); border-color: var(--breath); color: #fff; font-weight: 600; }
+button.practice { border-style: dashed; }
+button:disabled { opacity: .45; cursor: default; }
+label { display: inline-flex; gap: 5px; align-items: center; }
+select { font: inherit; padding: 3px 4px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 5px; }
+.status { margin-top: 8px; min-height: 1.4em; }
+.status.err { color: var(--warn); }
+.tag { display: inline-block; padding: 0 7px; border-radius: 4px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; }
+.tag.off { display: none; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 13px; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+tr:last-child td { border-bottom: 0; }
+td.k { font-weight: 600; white-space: nowrap; }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 22px; margin-top: 6px; }
+.facts b { font-variant-numeric: tabular-nums; }
+.linkline { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.linkline .state { font-weight: 600; }
+.traces { display: grid; gap: 10px; }
+canvas { display: block; width: 100%; background: var(--panel); border-radius: 4px; }
+.tracehead { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 14px; align-items: baseline; }
+.opts { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+details { border-top: 1px solid var(--line); padding-top: 6px; margin-top: 8px; }
+details > summary { cursor: pointer; font-weight: 600; }
+details.card { margin-top: 0; }
+.log { max-height: 340px; overflow-y: auto; font-size: 13px; border: 1px solid var(--line); border-radius: 6px; }
+.ev { display: grid; grid-template-columns: 96px 70px 92px 1fr; gap: 0 8px; padding: 3px 8px; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+.ev:last-child { border-bottom: 0; }
+.ev .kind { font-weight: 600; }
+.ev.warn .kind { color: var(--warn); }
+.ev.bad .kind { color: var(--bad); }
+.ev.good .kind { color: var(--ok); }
+.ev .when, .ev .since { color: var(--muted); }
+@media (max-width: 640px) { .ev { grid-template-columns: 88px 1fr; } .ev .since, .ev .kind { display: none; } }
+.row { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; margin-top: 4px; }
+input[type=range] { width: 130px; accent-color: var(--breath); }
+.val { font-variant-numeric: tabular-nums; min-width: 4.2em; display: inline-block; }
+.lead { font-weight: 600; }
+.meter { height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; width: 160px; display: inline-block; vertical-align: middle; }
+.meter > i { display: block; height: 100%; width: 0; background: var(--breath); }
+#c3d { height: 400px; cursor: grab; touch-action: none; }
+#c3d.drag { cursor: grabbing; }
+#cbreath { height: 150px; }
+.accview { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr); gap: 10px; margin-top: 8px; }
+@media (max-width: 860px) { .accview { grid-template-columns: 1fr; } }
+code { font-size: 12.5px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="card">
+    <div class="head">
+      <h1>Polar H10 test bench</h1>
+      <p class="sub">Chrome only. Wear the strap with wet electrodes. Turn off phone Bluetooth and close Polar apps first.</p>
+    </div>
+    <div class="controls">
+      <div class="grp">
+        <button id="btnConnect" class="primary">Connect</button>
+        <button id="btnDisc" disabled>Disconnect</button>
+        <button id="btnPractice" class="practice">Practice strap</button>
+      </div>
+      <div class="grp">
+        <label><input type="checkbox" id="ckEcg" checked> ECG</label>
+        <label><input type="checkbox" id="ckAcc" checked> Accelerometer</label>
+        <label><input type="checkbox" id="ckHr" checked> Heart rate</label>
+      </div>
+      <div class="grp">
+        <label>Accelerometer rate <select id="selRate"><option>25</option><option>50</option><option>100</option><option selected>200</option></select> samples/s</label>
+        <label>Range &plusmn;<select id="selRange"><option>2</option><option>4</option><option selected>8</option></select> g</label>
+      </div>
+      <div class="grp">
+        <button id="btnSave" disabled>Save session data</button>
+        <button id="btnClear" disabled>Clear session data</button>
+      </div>
+    </div>
+    <p class="status sub" id="status">Not connected.</p>
+    <p><span id="simTag" class="tag off">PRACTICE STRAP: made-up data, not from a real strap</span></p>
+  </div>
+
+  <div class="card">
+    <h2>At a glance</h2>
+    <div class="tablewrap">
+      <table id="glance">
+        <thead><tr>
+          <th>Stream</th><th>Packets received</th><th>Samples per packet</th><th>Time between packets (ms)</th>
+          <th>Sample rate, strap clock (samples/s)</th><th>Sample rate, computer clock (samples/s)</th><th>Packets lost</th><th>Last value</th>
+        </tr></thead>
+        <tbody>
+          <tr id="r-ecg"><td class="k">ECG</td><td data-c="pk">&ndash;</td><td data-c="per">&ndash;</td><td data-c="int">&ndash;</td><td data-c="rs">&ndash;</td><td data-c="rp">&ndash;</td><td data-c="lost">&ndash;</td><td data-c="last">&ndash;</td></tr>
+          <tr id="r-acc"><td class="k">Accelerometer</td><td data-c="pk">&ndash;</td><td data-c="per">&ndash;</td><td data-c="int">&ndash;</td><td data-c="rs">&ndash;</td><td data-c="rp">&ndash;</td><td data-c="lost">&ndash;</td><td data-c="last">&ndash;</td></tr>
+          <tr id="r-hr"><td class="k">Heart rate</td><td data-c="pk">&ndash;</td><td data-c="per">&ndash;</td><td data-c="int">&ndash;</td><td data-c="rs">&ndash;</td><td data-c="rp">&ndash;</td><td data-c="lost">&ndash;</td><td data-c="last">&ndash;</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="facts">
+      <span>Connection: <b id="fConn">not connected</b></span>
+      <span>Battery: <b id="fBatt">&ndash;</b></span>
+      <span>Strap: <b id="fName">&ndash;</b></span>
+    </div>
+    <details>
+      <summary>How these numbers are worked out</summary>
+      <p class="note">Time between packets is the gap between arrivals on this computer (performance.now). The strap-clock rate is samples divided by the strap's own timestamps; the computer-clock rate is the same samples divided by arrival times. Both skip the interval across a lost packet, a clock reset or a reconnect. A packet counts as lost when the strap timestamp jumps by more than 1.5 packet periods. Heart rate packets carry no strap timestamp, so only the computer-clock rate exists and losses cannot be counted. Heart rate notifications are always on while connected; the Heart rate box controls only whether this page records them.</p>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Link</h2>
+    <div class="linkline">
+      <span class="state" id="rcState">No strap connected.</span>
+      <button id="btnReconnect" hidden>Reconnect</button>
+      <label><input type="checkbox" id="ckAuto" checked> Reconnect automatically every <span id="rcSecs">3</span> s</label>
+    </div>
+    <p class="note" id="rcNote">Reconnecting uses the strap you already chose, so Chrome shows no chooser. That works only while this page stays open; after a reload, press Connect.</p>
+  </div>
+
+  <div class="card">
+    <div class="tracehead">
+      <h2>Live traces</h2>
+      <div class="opts">
+        <label>Time shown <select id="selWin"><option>10</option><option selected>20</option><option>60</option></select> s</label>
+        <label>Accelerometer
+          <select id="selAccMode"><option value="sep" selected>Separate</option><option value="over">Overlay</option></select></label>
+      </div>
+    </div>
+    <div class="traces">
+      <div><p class="note lead">ECG (microvolts)</p><canvas id="cEcg" style="height:130px"></canvas></div>
+      <div><p class="note lead">Accelerometer x, y, z (milli-g)</p><canvas id="cAcc" style="height:210px"></canvas></div>
+      <div><p class="note lead">Heart rate (beats/min); dots are beat-to-beat rates from RR, last 2 minutes</p><canvas id="cHr" style="height:130px"></canvas></div>
+      <div><p class="note lead">RR interval (ms), last 2 minutes</p><canvas id="cRr" style="height:110px"></canvas></div>
+    </div>
+    <details id="accDetails">
+      <summary>3D accelerometer view and breathing filter</summary>
+      <div class="accview">
+        <div>
+          <h2>Acceleration as an arrow (drag to turn the view)</h2>
+          <canvas id="c3d" aria-label="3D view of the acceleration arrow"></canvas>
+          <div class="row">
+            <label>Magnify <input type="range" id="rgMag" min="1" max="60" step="1" value="10"><span class="val" id="vMag"></span></label>
+            <label>Trail <input type="range" id="rgTrail" min="1" max="30" step="1" value="10"><span class="val" id="vTrail"></span></label>
+            <label>Arrow smoothing <input type="range" id="rgSmooth" min="0" max="0.5" step="0.05" value="0.1"><span class="val" id="vSmooth"></span></label>
+            <button id="btnView">Reset view</button>
+          </div>
+          <p class="note" id="tilt">&nbsp;</p>
+        </div>
+        <div>
+          <h2>Breathing trace, filtered live (milli-g along the direction that moves most)</h2>
+          <canvas id="cbreath" aria-label="breathing trace"></canvas>
+          <div class="row">
+            <label>Slow average time constant <input type="range" id="rgTau" min="0" max="100" step="1"><span class="val" id="vTau"></span></label>
+            <label>Drop changes slower than <input type="range" id="rgHp" min="0" max="100" step="1"><span class="val" id="vHp"></span></label>
+            <label>Drop changes faster than <input type="range" id="rgLp" min="0" max="100" step="1"><span class="val" id="vLp"></span></label>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="ckDelayAuto" checked> Set display delay automatically</label>
+            <label>Display delay <input type="range" id="rgDelay" min="50" max="1500" step="10" value="300" disabled><span class="val" id="vDelay"></span></label>
+            <span class="note" id="roDelayInfo"></span>
+          </div>
+          <p class="note lead" id="fdelay">&nbsp;</p>
+          <p class="note">The starting values (average 20 s, slower than 0.05 Hz, faster than 1 Hz) are starting points, not established values. The filters use only past samples, so the delay above is not corrected. Needs the accelerometer on.</p>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>Event log (newest first)</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <details class="card" id="tapDetails">
+    <summary>Tap test (experimental): how large is the delay on this computer?</summary>
+    <p class="note" style="margin-top:6px">Turn the accelerometer on, press Start listening (the browser asks for the microphone), then tap the strap firmly 5 to 10 times next to the computer's microphone, about a second apart. The page finds each tap in the microphone and in the accelerometer and compares the two times. The result is the total offset of this computer's path: the Bluetooth link plus the audio input path. It cannot separate the two.</p>
+    <div class="controls">
+      <button id="btnTapStart">Start listening</button>
+      <button id="btnTapStop" disabled>Stop</button>
+      <button id="btnTapClear">Clear taps</button>
+      <span>Microphone level <span class="meter"><i id="tapMeter"></i></span></span>
+      <span id="tapStatus" class="sub">Not listening.</span>
+    </div>
+    <div class="tablewrap" style="margin-top:6px">
+      <table id="tapTable">
+        <thead><tr><th>Tap</th><th>Heard by microphone (ms on this page's clock)</th><th>Felt by accelerometer (ms on this page's clock)</th><th>Accelerometer minus microphone (ms)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="lead" id="tapMedian" style="margin-top:6px">No taps matched yet.</p>
+    <p class="note" id="tapMethod"></p>
+  </details>
+
+  <details class="card" id="practiceDetails" hidden>
+    <summary>Practice strap controls</summary>
+    <p class="note" style="margin-top:6px">These act on the made-up strap only, so you can see how the page reacts without hardware.</p>
+    <div class="controls">
+      <button id="pxDrop">Drop the link (the strap comes back after 2 failed tries)</button>
+      <button id="pxDropReset">Drop the link and reset the strap clock</button>
+      <button id="pxOff">Take the strap off the body</button>
+      <button id="pxOn">Put the strap on the body</button>
+      <button id="pxGap">Lose 3 accelerometer packets</button>
+      <button id="pxTap">Tap the strap</button>
+    </div>
+  </details>
+
+</div>
+
+<script>
+// ===== polar-protocol.js (sha256 db5d34bf1e54), copied from /home/claude/chrome/backend/polar-protocol.js =====
+const __mod_polar_protocol = (() => {
+// SPDX-License-Identifier: GPL-3.0-or-later
+// polar-protocol.js
+//
+// The Polar H10 chest strap's Bluetooth protocol: every constant, the command builders and the pure
+// decoders (bytes in, plain values out), plus a stand-in strap (MockPolarDevice) that tests use when no
+// strap is at hand. This file has no page references and does not touch Bluetooth; polar-ble.js does that.
+//
+// Where each fact comes from: /mnt/user-data/outputs/polar-h10-protocol-notes.md (section numbers below
+// are that file's). The decoders here are written from those facts. No code is copied from the Polar SDK
+// or from polar-h10-web (Polar SDK license) or from bleakheart (MPL-2.0).
+//
+// The Python twin (live/polar_h10.py) carries the same constants. Its tests read the plain top-level
+// exports of this file and check that the two copies agree, so keep every constant a simple literal.
+
+// ---------------------------------------------------------------------------------------------
+// Bluetooth identifiers (notes section 1, 2 and 4). UUIDs are lowercase, as Web Bluetooth wants them.
+// ---------------------------------------------------------------------------------------------
+
+const HEART_RATE_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb";
+const HEART_RATE_MEASUREMENT_UUID = "00002a37-0000-1000-8000-00805f9b34fb";
+// The standard battery service and its level characteristic (a Bluetooth SIG assignment; the notes name only the service).
+const BATTERY_SERVICE_UUID = "0000180f-0000-1000-8000-00805f9b34fb";
+const BATTERY_LEVEL_UUID = "00002a19-0000-1000-8000-00805f9b34fb";
+const PMD_SERVICE_UUID = "fb005c80-02e7-f387-1cad-8acd2d8df0c8";
+const PMD_CONTROL_UUID = "fb005c81-02e7-f387-1cad-8acd2d8df0c8";
+const PMD_DATA_UUID = "fb005c82-02e7-f387-1cad-8acd2d8df0c8";
+
+// What the page asks the browser for. The strap advertises the heart rate service, so that is the
+// filter; every other service must be listed up front or the browser refuses access later (notes section 4).
+const REQUEST_DEVICE_OPTIONS = Object.freeze({
+  filters: Object.freeze([Object.freeze({ services: Object.freeze([HEART_RATE_SERVICE_UUID]) })]),
+  optionalServices: Object.freeze([PMD_SERVICE_UUID, BATTERY_SERVICE_UUID]),
+});
+
+// ---------------------------------------------------------------------------------------------
+// Heart rate notification (notes section 1)
+// ---------------------------------------------------------------------------------------------
+
+const HR_FLAG_UINT16 = 0x01;            // heart rate is 2 bytes instead of 1
+const HR_FLAG_CONTACT_DETECTED = 0x02;
+const HR_FLAG_CONTACT_SUPPORTED = 0x04;
+const HR_FLAG_ENERGY_PRESENT = 0x08;    // 2 bytes of energy expended follow the heart rate
+const HR_FLAG_RR_PRESENT = 0x10;        // every remaining 2 bytes is one RR interval
+const RR_UNITS_PER_SECOND = 1024;       // RR intervals arrive in 1/1024 s
+
+// ---------------------------------------------------------------------------------------------
+// PMD (Polar measurement data) service: measurement types, commands, settings (notes section 2)
+// ---------------------------------------------------------------------------------------------
+
+const PMD_TYPE_ECG = 0;
+const PMD_TYPE_PPG = 1;
+const PMD_TYPE_ACC = 2;
+const PMD_TYPE_PPI = 3;
+const PMD_TYPE_GYRO = 5;
+const PMD_TYPE_MAGNETOMETER = 6;
+const PMD_TYPE_SDK_MODE = 9;
+const PMD_TYPE_NAMES = Object.freeze({
+  [PMD_TYPE_ECG]: "ECG", [PMD_TYPE_PPG]: "PPG", [PMD_TYPE_ACC]: "accelerometer", [PMD_TYPE_PPI]: "PPI",
+  [PMD_TYPE_GYRO]: "gyroscope", [PMD_TYPE_MAGNETOMETER]: "magnetometer", [PMD_TYPE_SDK_MODE]: "SDK mode",
+});
+
+const PMD_OP_GET_SETTINGS = 1;
+const PMD_OP_START = 2;
+const PMD_OP_STOP = 3;
+const PMD_FEATURE_MARKER = 0x0F;    // first byte of the control point's feature read: 0F, a bitmask of types, ...
+const PMD_RESPONSE_MARKER = 0xF0;   // first byte of a reply to a command: F0, opcode, type, status, more, parameters
+const PMD_STOPPED_MARKER = 0x01;    // first byte of an unrequested notice that streams stopped; the stopped types follow
+
+const PMD_SETTING_SAMPLE_RATE = 0;       // uint16, Hz
+const PMD_SETTING_RESOLUTION = 1;        // uint16, bits
+const PMD_SETTING_RANGE = 2;             // uint16, plus or minus this many units (g for the accelerometer)
+const PMD_SETTING_CHANNELS = 4;          // uint8
+const PMD_SETTING_CONVERSION_FACTOR = 5; // float32, replies only
+
+// What the Polar H10 supports (notes section 2).
+const ECG_SAMPLE_RATE_HZ = 130;
+const ECG_RESOLUTION_BITS = 14;
+const ECG_BYTES_PER_SAMPLE = 3;          // signed 24-bit, microvolts
+const ACC_SAMPLE_RATES_HZ = Object.freeze([25, 50, 100, 200]);
+const ACC_RANGES_G = Object.freeze([2, 4, 8]);
+const ACC_DEFAULT_RATE_HZ = 200;
+const ACC_DEFAULT_RANGE_G = 2;
+const ACC_RESOLUTION_BITS = 16;
+const ACC_BYTES_PER_AXIS = 2;            // signed 16-bit, milli-g
+const ACC_AXES = 3;
+
+// Reply status codes, in code order (notes section 2). Index = code.
+const PMD_STATUS_SUCCESS = 0;
+const PMD_STATUS_WORDS = Object.freeze([
+  "success", "invalid op code", "invalid measurement type", "not supported", "invalid length",
+  "invalid parameter", "already in state", "invalid resolution", "invalid sample rate", "invalid range",
+  "invalid MTU", "invalid number of channels", "invalid state", "device in charger",
+]);
+
+// ---------------------------------------------------------------------------------------------
+// PMD data frames (notes section 2)
+// ---------------------------------------------------------------------------------------------
+
+const PMD_HEADER_BYTES = 10;             // type (1), device time (8), frame type (1)
+const PMD_TYPE_MASK = 0x3F;              // the measurement type is the low 6 bits of byte 0
+const PMD_FRAME_DELTA_FLAG = 0x80;       // set in the frame-type byte for a delta-compressed frame
+const PMD_FRAME_TYPE_MASK = 0x7F;
+const ECG_FRAME_TYPE = 0;                // raw 3-byte samples
+const ACC_FRAME_TYPE = 1;                // raw 16-bit x, y, z
+
+// Device time is nanoseconds since 2000-01-01T00:00:00Z on the strap's own clock. Add this to get Unix nanoseconds.
+const POLAR_EPOCH_UNIX_NS = 946684800000000000n;
+const NS_PER_SECOND = 1e9;
+
+// ---------------------------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------------------------
+
+class PolarProtocolError extends Error {
+  constructor(message, details = {}) {
+    super(message);
+    this.name = "PolarProtocolError";
+    Object.assign(this, details);
+  }
+}
+
+// Accepts a Uint8Array, an ArrayBuffer, a DataView or a plain array and returns a Uint8Array over the same bytes.
+function toBytes(data) {
+  if (data instanceof Uint8Array) return data;
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  if (ArrayBuffer.isView(data)) return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+  return Uint8Array.from(data);
+}
+
+const hex = (bytes) => Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(" ");
+const typeName = (type) => PMD_TYPE_NAMES[type] ?? `type ${type}`;
+
+// ---------------------------------------------------------------------------------------------
+// Commands (client to strap)
+// ---------------------------------------------------------------------------------------------
+
+function pmdQueryCommand(type) { return Uint8Array.of(PMD_OP_GET_SETTINGS, type); }
+function pmdStopCommand(type) { return Uint8Array.of(PMD_OP_STOP, type); }
+
+// One setting record: [setting type][count = 1][value, 2 bytes little-endian].
+function settingRecord(settingType, value) {
+  return [settingType, 1, value & 0xFF, (value >> 8) & 0xFF];
+}
+
+// Start command: [opcode][type][setting records...].
+function pmdStartCommand(type, settings) {
+  const bytes = [PMD_OP_START, type];
+  for (const [settingType, value] of settings) bytes.push(...settingRecord(settingType, value));
+  return Uint8Array.from(bytes);
+}
+
+function ecgStartCommand({ sampleRateHz = ECG_SAMPLE_RATE_HZ, resolutionBits = ECG_RESOLUTION_BITS } = {}) {
+  if (sampleRateHz !== ECG_SAMPLE_RATE_HZ) throw new RangeError(`The Polar H10 streams ECG at ${ECG_SAMPLE_RATE_HZ} Hz only, not ${sampleRateHz} Hz.`);
+  if (resolutionBits !== ECG_RESOLUTION_BITS) throw new RangeError(`The Polar H10 streams ECG at ${ECG_RESOLUTION_BITS} bits only, not ${resolutionBits}.`);
+  return pmdStartCommand(PMD_TYPE_ECG, [[PMD_SETTING_SAMPLE_RATE, sampleRateHz], [PMD_SETTING_RESOLUTION, resolutionBits]]);
+}
+
+function accStartCommand({ sampleRateHz = ACC_DEFAULT_RATE_HZ, rangeG = ACC_DEFAULT_RANGE_G, resolutionBits = ACC_RESOLUTION_BITS } = {}) {
+  if (!ACC_SAMPLE_RATES_HZ.includes(sampleRateHz)) throw new RangeError(`The Polar H10 accelerometer streams at ${ACC_SAMPLE_RATES_HZ.join(", ")} Hz, not ${sampleRateHz} Hz.`);
+  if (!ACC_RANGES_G.includes(rangeG)) throw new RangeError(`The Polar H10 accelerometer range is ${ACC_RANGES_G.join(", ")} g, not ${rangeG} g.`);
+  if (resolutionBits !== ACC_RESOLUTION_BITS) throw new RangeError(`The Polar H10 accelerometer streams at ${ACC_RESOLUTION_BITS} bits only, not ${resolutionBits}.`);
+  return pmdStartCommand(PMD_TYPE_ACC, [
+    [PMD_SETTING_SAMPLE_RATE, sampleRateHz], [PMD_SETTING_RESOLUTION, resolutionBits], [PMD_SETTING_RANGE, rangeG]]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Replies and notices (strap to client)
+// ---------------------------------------------------------------------------------------------
+
+function pmdStatusWord(code) { return PMD_STATUS_WORDS[code] ?? `unknown status ${code}`; }
+
+// The measurement types named by the feature bitmask (bit i set = type i available).
+function featureTypes(mask) {
+  const types = [];
+  for (let bit = 0; bit < 8; bit++) if (mask & (1 << bit)) types.push(bit);
+  return types;
+}
+
+// Reads whatever the control point sends: the feature read, a command reply, or a "streams stopped" notice.
+function parsePmdControl(data) {
+  const b = toBytes(data);
+  if (b.length === 0) throw new PolarProtocolError("The Polar H10 sent an empty control message.");
+  if (b[0] === PMD_FEATURE_MARKER) {
+    if (b.length < 2) throw new PolarProtocolError(`The Polar H10 feature message is too short: ${hex(b)}.`);
+    return { kind: "features", mask: b[1], measurementTypes: featureTypes(b[1]) };
+  }
+  if (b[0] === PMD_RESPONSE_MARKER) {
+    if (b.length < 5) throw new PolarProtocolError(`The Polar H10 reply is too short: ${hex(b)}.`);
+    return { kind: "response", opcode: b[1], measurementType: b[2], status: b[3], statusWord: pmdStatusWord(b[3]),
+      more: b[4] !== 0, params: b.slice(5) };
+  }
+  if (b[0] === PMD_STOPPED_MARKER) return { kind: "stopped", measurementTypes: Array.from(b.slice(1)) };
+  return { kind: "unknown", bytes: b };
+}
+
+// Setting records in a get-settings reply, by setting type: the field they fill, the byte size of one value, how to read it.
+const SETTING_FIELDS = Object.freeze({
+  [PMD_SETTING_SAMPLE_RATE]: { field: "sampleRatesHz", size: 2, read: (v, o) => v.getUint16(o, true) },
+  [PMD_SETTING_RESOLUTION]: { field: "resolutionsBits", size: 2, read: (v, o) => v.getUint16(o, true) },
+  [PMD_SETTING_RANGE]: { field: "ranges", size: 2, read: (v, o) => v.getUint16(o, true) },
+  [PMD_SETTING_CHANNELS]: { field: "channels", size: 1, read: (v, o) => v.getUint8(o) },
+  [PMD_SETTING_CONVERSION_FACTOR]: { field: "conversionFactors", size: 4, read: (v, o) => v.getFloat32(o, true) },
+});
+
+// Parses concatenated [setting type][count][value x count] records into {sampleRatesHz, resolutionsBits, ranges, channels, conversionFactors}.
+function parsePmdSettings(data) {
+  const b = toBytes(data);
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const out = { sampleRatesHz: [], resolutionsBits: [], ranges: [], channels: [], conversionFactors: [] };
+  let at = 0;
+  while (at < b.length) {
+    if (at + 2 > b.length) throw new PolarProtocolError(`The Polar H10 settings list ends inside a record: ${hex(b)}.`);
+    const spec = SETTING_FIELDS[b[at]];
+    const count = b[at + 1];
+    if (!spec) throw new PolarProtocolError(`The Polar H10 settings list has an unknown setting type ${b[at]}: ${hex(b)}.`);
+    at += 2;
+    if (at + count * spec.size > b.length) throw new PolarProtocolError(`The Polar H10 settings list is cut short: ${hex(b)}.`);
+    for (let i = 0; i < count; i++, at += spec.size) out[spec.field].push(spec.read(view, at));
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Heart rate notification decoder
+// ---------------------------------------------------------------------------------------------
+
+// Returns {heartRateBpm, contactSupported, contactDetected, energyExpended, rrIntervalsMs}. Contact counts as
+// detected only when both contact bits are set. energyExpended is null when absent (units as the Bluetooth heart rate service defines them).
+function parseHeartRate(data) {
+  const b = toBytes(data);
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  if (b.length < 2) throw new PolarProtocolError(`The Polar H10 heart rate message is too short: ${hex(b)}.`);
+  const flags = b[0];
+  let at = 1;
+  const wide = (flags & HR_FLAG_UINT16) !== 0;
+  if (at + (wide ? 2 : 1) > b.length) throw new PolarProtocolError(`The Polar H10 heart rate message is too short: ${hex(b)}.`);
+  const heartRateBpm = wide ? view.getUint16(at, true) : b[at];
+  at += wide ? 2 : 1;
+  let energyExpended = null;
+  if (flags & HR_FLAG_ENERGY_PRESENT) {
+    if (at + 2 > b.length) throw new PolarProtocolError(`The Polar H10 heart rate message is too short: ${hex(b)}.`);
+    energyExpended = view.getUint16(at, true);
+    at += 2;
+  }
+  const rrIntervalsMs = [];
+  if (flags & HR_FLAG_RR_PRESENT) {
+    if ((b.length - at) % 2 !== 0) throw new PolarProtocolError(`The Polar H10 heart rate message has an incomplete RR interval: ${hex(b)}.`);
+    for (; at < b.length; at += 2) rrIntervalsMs.push(Math.round(view.getUint16(at, true) * 1000 / RR_UNITS_PER_SECOND));
+  }
+  return {
+    heartRateBpm, energyExpended, rrIntervalsMs,
+    contactSupported: (flags & HR_FLAG_CONTACT_SUPPORTED) !== 0,
+    contactDetected: (flags & HR_FLAG_CONTACT_SUPPORTED) !== 0 && (flags & HR_FLAG_CONTACT_DETECTED) !== 0,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------
+// PMD data frame decoders
+// ---------------------------------------------------------------------------------------------
+
+// Returns {measurementType, deviceTimeNs (BigInt), frameType, isDelta, payload (the bytes after the header)}.
+function parsePmdFrameHeader(data) {
+  const b = toBytes(data);
+  if (b.length < PMD_HEADER_BYTES) throw new PolarProtocolError(`The Polar H10 data frame is shorter than its ${PMD_HEADER_BYTES}-byte header: ${hex(b)}.`);
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  return {
+    measurementType: b[0] & PMD_TYPE_MASK,
+    deviceTimeNs: view.getBigUint64(1, true),
+    frameType: b[9] & PMD_FRAME_TYPE_MASK,
+    isDelta: (b[9] & PMD_FRAME_DELTA_FLAG) !== 0,
+    payload: b.subarray(PMD_HEADER_BYTES),
+  };
+}
+
+function requireRawFrame(header, expectedFrameType) {
+  const name = typeName(header.measurementType);
+  if (header.isDelta) throw new PolarProtocolError(`The Polar H10 sent a delta-compressed ${name} frame (frame type byte has 0x80 set). RespGraph Studio does not decode those.`, { header });
+  if (header.frameType !== expectedFrameType) throw new PolarProtocolError(`The Polar H10 sent a ${name} frame of type ${header.frameType}; RespGraph Studio reads type ${expectedFrameType} only.`, { header });
+}
+
+// ECG payload: signed 24-bit little-endian samples in microvolts.
+function decodeEcgSamples(header) {
+  requireRawFrame(header, ECG_FRAME_TYPE);
+  const p = header.payload;
+  if (p.length % ECG_BYTES_PER_SAMPLE !== 0) throw new PolarProtocolError(`The Polar H10 ECG frame holds ${p.length} data bytes, which is not a whole number of ${ECG_BYTES_PER_SAMPLE}-byte samples.`, { header });
+  const samples = new Int32Array(p.length / ECG_BYTES_PER_SAMPLE);
+  for (let i = 0; i < samples.length; i++) {
+    const v = p[i * 3] | (p[i * 3 + 1] << 8) | (p[i * 3 + 2] << 16);
+    samples[i] = v & 0x800000 ? v - 0x1000000 : v;
+  }
+  return samples;
+}
+
+// Accelerometer payload: x, y, z as signed 16-bit little-endian, milli-g. Returns {x, y, z} as Int16Arrays.
+function decodeAccSamples(header) {
+  requireRawFrame(header, ACC_FRAME_TYPE);
+  const p = header.payload;
+  const stride = ACC_AXES * ACC_BYTES_PER_AXIS;
+  if (p.length % stride !== 0) throw new PolarProtocolError(`The Polar H10 accelerometer frame holds ${p.length} data bytes, which is not a whole number of ${stride}-byte x, y, z samples.`, { header });
+  const view = new DataView(p.buffer, p.byteOffset, p.byteLength);
+  const n = p.length / stride;
+  const out = { x: new Int16Array(n), y: new Int16Array(n), z: new Int16Array(n) };
+  for (let i = 0; i < n; i++) {
+    out.x[i] = view.getInt16(i * stride, true);
+    out.y[i] = view.getInt16(i * stride + ACC_BYTES_PER_AXIS, true);
+    out.z[i] = view.getInt16(i * stride + 2 * ACC_BYTES_PER_AXIS, true);
+  }
+  return out;
+}
+
+// Reads one frame completely: {measurementType, deviceTimeNs, sampleCount, ecg: Int32Array | acc: {x,y,z}}.
+function decodePmdFrame(data) {
+  const header = parsePmdFrameHeader(data);
+  if (header.measurementType === PMD_TYPE_ECG) {
+    const ecg = decodeEcgSamples(header);
+    return { measurementType: header.measurementType, deviceTimeNs: header.deviceTimeNs, sampleCount: ecg.length, ecg };
+  }
+  if (header.measurementType === PMD_TYPE_ACC) {
+    const acc = decodeAccSamples(header);
+    return { measurementType: header.measurementType, deviceTimeNs: header.deviceTimeNs, sampleCount: acc.x.length, acc };
+  }
+  throw new PolarProtocolError(`The Polar H10 sent a data frame for ${typeName(header.measurementType)}, which RespGraph Studio does not read.`, { header });
+}
+
+// ---------------------------------------------------------------------------------------------
+// Per-sample device times
+// ---------------------------------------------------------------------------------------------
+
+// The frame's device time stamps its LAST sample. Earlier samples step back from it by
+// (frame time - previous frame time) / samples in this frame, which keeps the strap's true sample rate.
+// The first frame has no previous frame, so it steps back by the nominal spacing (1e9 / nominal rate).
+// A previous frame time that is not earlier than this one (the strap's clock reset) also falls back to nominal spacing.
+// Returns an array of BigInt nanoseconds, oldest first.
+function sampleTimesNs(frameTimeNs, prevFrameTimeNs, sampleCount, nominalRateHz) {
+  let spacingNs = NS_PER_SECOND / nominalRateHz;
+  if (prevFrameTimeNs != null && frameTimeNs > prevFrameTimeNs && sampleCount > 0) {
+    spacingNs = Number(frameTimeNs - prevFrameTimeNs) / sampleCount;
+  }
+  const times = new Array(sampleCount);
+  for (let i = 0; i < sampleCount; i++) times[i] = frameTimeNs - BigInt(Math.round((sampleCount - 1 - i) * spacingNs));
+  return times;
+}
+
+// Seconds from one device time to another.
+function deviceSecondsBetween(laterNs, earlierNs) { return Number(laterNs - earlierNs) / NS_PER_SECOND; }
+
+// ---------------------------------------------------------------------------------------------
+// A stand-in Polar H10 for tests (no strap, no Bluetooth)
+//
+// Shaped like what navigator.bluetooth hands back: a device with a gatt server, services,
+// characteristics (startNotifications, readValue, writeValueWithResponse, "characteristicvaluechanged"
+// events with a DataView in .value) and a "gattserverdisconnected" event. It answers the control point
+// as the notes describe. The settings reply bytes and the frame sizes are synthetic: the notes could not
+// confirm what a real strap sends there. Time moves only when advance(seconds) is called (or
+// start(intervalMs) calls it on a timer), so a test can run minutes of signal in milliseconds.
+// ---------------------------------------------------------------------------------------------
+
+const MOCK_ECG_SAMPLES_PER_FRAME = 73;     // synthetic frame sizes, kept under a typical Bluetooth packet
+const MOCK_ACC_SAMPLES_PER_FRAME = 36;
+const MOCK_DEVICE_START_NS = BigInt((Date.UTC(2019, 0, 1) - Date.UTC(2000, 0, 1)) / 1000) * 1000000000n;   // a strap that has reset: 2019-01-01
+const MOCK_HEART_RATE_BPM = 72;
+const MOCK_BATTERY_PERCENT = 87;
+const MOCK_ECG_AMPLITUDE_UV = 800;
+const MOCK_ECG_HZ = 1.2;
+const MOCK_ACC_AMPLITUDE_MG = 120;
+const MOCK_ACC_HZ = 0.25;
+const MOCK_DEVICE_NAME = "Polar H10 MOCK1234";
+const MOCK_DEVICE_ID = "mock-polar-h10";
+
+const u16 = (v) => [v & 0xFF, (v >> 8) & 0xFF];
+const dataViewOf = (bytes) => { const u = Uint8Array.from(bytes); return new DataView(u.buffer); };
+const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+class MockCharacteristic extends EventTarget {
+  constructor(uuid, owner) {
+    super();
+    this.uuid = uuid;
+    this.value = null;
+    this.notifying = false;
+    this._owner = owner;
+  }
+  async startNotifications() { this._owner._requireConnected(); this.notifying = true; return this; }
+  async stopNotifications() { this.notifying = false; return this; }
+  async readValue() { this._owner._requireConnected(); this.value = dataViewOf(this._owner._read(this.uuid)); return this.value; }
+  async writeValueWithResponse(data) { this._owner._requireConnected(); this._owner._write(this.uuid, Array.from(toBytes(data))); }
+  _notify(bytes) {
+    if (!this.notifying) return;
+    this.value = dataViewOf(bytes);
+    this.dispatchEvent(new Event("characteristicvaluechanged"));
+  }
+}
+
+class MockService {
+  constructor(uuid, chars) { this.uuid = uuid; this._chars = chars; }
+  async getCharacteristic(uuid) {
+    const c = this._chars[uuid];
+    if (!c) throw new DOMException(`No characteristic ${uuid}`, "NotFoundError");
+    return c;
+  }
+}
+
+class MockPolarDevice extends EventTarget {
+  // options: rateRatio (1 = nominal; 1.0018 makes the ECG about 130.24 Hz), heartRateBpm, batteryPercent, featureMask,
+  // ecgSamplesPerFrame, accSamplesPerFrame, deviceStartNs.
+  constructor(options = {}) {
+    super();
+    this.options = {
+      rateRatio: 1, heartRateBpm: MOCK_HEART_RATE_BPM, batteryPercent: MOCK_BATTERY_PERCENT,
+      featureMask: (1 << PMD_TYPE_ECG) | (1 << PMD_TYPE_ACC),
+      ecgSamplesPerFrame: MOCK_ECG_SAMPLES_PER_FRAME, accSamplesPerFrame: MOCK_ACC_SAMPLES_PER_FRAME,
+      deviceStartNs: MOCK_DEVICE_START_NS, ...options,
+    };
+    this.id = MOCK_DEVICE_ID;
+    this.name = MOCK_DEVICE_NAME;
+    this.commandLog = [];                 // every control-point write, as arrays of bytes
+    this.connectFailures = 0;             // the next this-many gatt.connect() calls fail, as when a strap is out of reach
+    this.contact = null;                  // null: no contact bits in heart rate flags; true / false: strap on / off the body (off sends flat ECG)
+    this.dropFramesType = null;
+    this.dropFramesLeft = 0;              // the next this-many frames are counted but not sent (a gap in strap timestamps)
+    this._tapPending = false;
+    this._resumeMs = null; this._intervalMs = null; this._droppedAtPerf = null;
+    this.forcedStatus = new Map();        // "opcode:type" -> status code to answer instead of success
+    this.streams = new Map();             // type -> {rateHz, rangeG, owed, emitted, startNs}
+    this.chars = {
+      hr: new MockCharacteristic(HEART_RATE_MEASUREMENT_UUID, this),
+      battery: new MockCharacteristic(BATTERY_LEVEL_UUID, this),
+      control: new MockCharacteristic(PMD_CONTROL_UUID, this),
+      data: new MockCharacteristic(PMD_DATA_UUID, this),
+    };
+    this._services = {
+      [HEART_RATE_SERVICE_UUID]: new MockService(HEART_RATE_SERVICE_UUID, { [HEART_RATE_MEASUREMENT_UUID]: this.chars.hr }),
+      [BATTERY_SERVICE_UUID]: new MockService(BATTERY_SERVICE_UUID, { [BATTERY_LEVEL_UUID]: this.chars.battery }),
+      [PMD_SERVICE_UUID]: new MockService(PMD_SERVICE_UUID, { [PMD_CONTROL_UUID]: this.chars.control, [PMD_DATA_UUID]: this.chars.data }),
+    };
+    this._allowed = new Set([HEART_RATE_SERVICE_UUID]);   // services the page asked for
+    this._hrOwed = 0;
+    this._timer = null;
+    const self = this;
+    this.gatt = {
+      connected: false,
+      device: this,
+      async connect() {
+        if (self.connectFailures > 0) { self.connectFailures--; throw new DOMException("Connection attempt failed: the strap is out of reach.", "NetworkError"); }
+        this.connected = true;
+        self._resume();
+        return this;
+      },
+      disconnect() { self._drop(); },
+      async getPrimaryService(uuid) {
+        this._check();
+        if (!self._allowed.has(uuid)) throw new DOMException(`Service ${uuid} was not listed in optionalServices.`, "SecurityError");
+        const s = self._services[uuid];
+        if (!s) throw new DOMException(`No service ${uuid}`, "NotFoundError");
+        return s;
+      },
+      _check() { if (!this.connected) throw new DOMException("The device is disconnected.", "NetworkError"); },
+    };
+  }
+
+  _requireConnected() { this.gatt._check(); }
+
+  // After a reconnect, a device that was running on a timer carries on, and its clock has moved on by the time it was away.
+  _resume() {
+    if (!this._resumeMs) return;
+    if (this._droppedAtPerf !== null) this._deviceNs = (this._deviceNs ?? this.options.deviceStartNs) + BigInt(Math.round((performance.now() - this._droppedAtPerf) * 1e6));
+    const ms = this._resumeMs;
+    this._resumeMs = null; this._droppedAtPerf = null;
+    this.start(ms);
+  }
+  // Sets the strap's clock back to its start value, as a strap that restarted would. Streams started afterwards stamp from there.
+  resetDeviceClock() { this._deviceNs = this.options.deviceStartNs; this._droppedAtPerf = null; }
+  // Strap on or off the body. Off the body the ECG samples are all zero; heart rate flags carry the contact bits.
+  setContact(onBody) { this.contact = onBody; }
+  // The next n frames are skipped (their samples are counted, so strap timestamps jump). type: only that measurement type; omitted: any.
+  dropFrames(n, type = null) { this.dropFramesLeft = n; this.dropFramesType = type; }
+  // A firm tap: the next accelerometer frame carries a short large spike.
+  tap() { this._tapPending = true; }
+
+  _drop() {
+    if (!this.gatt.connected) return;
+    this.gatt.connected = false;
+    const running = this._intervalMs;
+    this.stop();
+    this._resumeMs = running; this._droppedAtPerf = running ? performance.now() : null;
+    this.streams.clear();
+    for (const c of Object.values(this.chars)) c.notifying = false;
+    this.dispatchEvent(new Event("gattserverdisconnected"));
+  }
+  // A strap that goes out of range or loses power.
+  simulateDisconnect() { this._drop(); }
+
+  _read(uuid) {
+    if (uuid === BATTERY_LEVEL_UUID) return [this.options.batteryPercent];
+    if (uuid === PMD_CONTROL_UUID) return [PMD_FEATURE_MARKER, this.options.featureMask, 0];
+    return [];
+  }
+
+  _write(uuid, bytes) {
+    if (uuid !== PMD_CONTROL_UUID) throw new DOMException("This characteristic cannot be written.", "NotSupportedError");
+    this.commandLog.push(bytes);
+    const [opcode, type] = bytes;
+    const reply = (status, params = []) => Promise.resolve().then(() =>
+      this.chars.control._notify([PMD_RESPONSE_MARKER, opcode, type, status, 0, ...params]));
+    const forced = this.forcedStatus.get(`${opcode}:${type}`);
+    if (forced !== undefined) return void reply(forced);
+    if (type !== PMD_TYPE_ECG && type !== PMD_TYPE_ACC) return void reply(2);            // invalid measurement type
+    if (opcode === PMD_OP_GET_SETTINGS) return void reply(PMD_STATUS_SUCCESS, this._settingsReply(type));
+    if (opcode === PMD_OP_STOP) { this.streams.delete(type); return void reply(PMD_STATUS_SUCCESS); }
+    if (opcode === PMD_OP_START) return void reply(this._start(type, bytes.slice(2)));
+    reply(1);                                                                             // invalid op code
+  }
+
+  _settingsReply(type) {
+    if (type === PMD_TYPE_ECG) {
+      return [PMD_SETTING_SAMPLE_RATE, 1, ...u16(ECG_SAMPLE_RATE_HZ), PMD_SETTING_RESOLUTION, 1, ...u16(ECG_RESOLUTION_BITS), PMD_SETTING_CHANNELS, 1, 1];
+    }
+    return [PMD_SETTING_SAMPLE_RATE, ACC_SAMPLE_RATES_HZ.length, ...ACC_SAMPLE_RATES_HZ.flatMap(u16),
+      PMD_SETTING_RESOLUTION, 1, ...u16(ACC_RESOLUTION_BITS),
+      PMD_SETTING_RANGE, ACC_RANGES_G.length, ...ACC_RANGES_G.flatMap(u16),
+      PMD_SETTING_CHANNELS, 1, ACC_AXES];
+  }
+
+  _start(type, settingBytes) {
+    if (this.streams.has(type)) return 6;                      // already in state
+    let parsed;
+    try { parsed = parsePmdSettings(Uint8Array.from(settingBytes)); } catch { return 4; }   // invalid length
+    const rate = parsed.sampleRatesHz[0], bits = parsed.resolutionsBits[0], range = parsed.ranges[0];
+    if (type === PMD_TYPE_ECG) {
+      if (rate !== ECG_SAMPLE_RATE_HZ) return 8;
+      if (bits !== ECG_RESOLUTION_BITS) return 7;
+    } else {
+      if (!ACC_SAMPLE_RATES_HZ.includes(rate)) return 8;
+      if (bits !== ACC_RESOLUTION_BITS) return 7;
+      if (!ACC_RANGES_G.includes(range)) return 9;
+    }
+    this.streams.set(type, { rateHz: rate, rangeG: range ?? null, owed: 0, emitted: 0, startNs: this._deviceNs ?? this.options.deviceStartNs });
+    return PMD_STATUS_SUCCESS;
+  }
+
+  // Moves the strap's clock forward and sends everything that would have been sent: whole frames of
+  // each running stream on the data characteristic, and a heart rate notification every second.
+  advance(seconds) {
+    this._deviceNs = (this._deviceNs ?? this.options.deviceStartNs) + BigInt(Math.round(seconds * NS_PER_SECOND));
+    this._hrOwed += seconds;
+    while (this._hrOwed >= 1) { this._hrOwed -= 1; this._sendHeartRate(); }
+    for (const [type, s] of this.streams) {
+      s.owed += seconds * s.rateHz * this.options.rateRatio;
+      const perFrame = type === PMD_TYPE_ECG ? this.options.ecgSamplesPerFrame : this.options.accSamplesPerFrame;
+      while (s.owed >= perFrame) {
+        s.owed -= perFrame;
+        this._sendFrame(type, s, perFrame);
+      }
+    }
+  }
+
+  start(intervalMs = 100) {
+    this.stop();
+    let last = performance.now();
+    this._intervalMs = intervalMs;
+    this._timer = setInterval(() => { const now = performance.now(); this.advance((now - last) / 1000); last = now; }, intervalMs);
+  }
+  stop() { this._intervalMs = null; if (this._timer) { clearInterval(this._timer); this._timer = null; } }
+
+  _sendHeartRate() {
+    const bpm = this.options.heartRateBpm;
+    const rr = Math.round(60 / bpm * RR_UNITS_PER_SECOND);
+    const contactBits = this.contact === null ? 0 : HR_FLAG_CONTACT_SUPPORTED | (this.contact ? HR_FLAG_CONTACT_DETECTED : 0);
+    this.chars.hr._notify([HR_FLAG_RR_PRESENT | contactBits, bpm, ...u16(rr)]);
+  }
+
+  _sendFrame(type, s, perFrame) {
+    const periodNs = NS_PER_SECOND / (s.rateHz * this.options.rateRatio);
+    const lastIndex = s.emitted + perFrame;                        // 1-based index of this frame's last sample
+    const frameNs = s.startNs + BigInt(Math.round(lastIndex * periodNs));
+    const body = [];
+    for (let i = 0; i < perFrame; i++) {
+      const t = (s.emitted + i) * periodNs / NS_PER_SECOND;
+      if (type === PMD_TYPE_ECG) {
+        const v = this.contact === false ? 0 : Math.round(MOCK_ECG_AMPLITUDE_UV * Math.sin(2 * Math.PI * MOCK_ECG_HZ * t)) & 0xFFFFFF;
+        body.push(v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF);
+      } else {
+        const phase = 2 * Math.PI * MOCK_ACC_HZ * t;
+        const spike = this._tapPending && i === perFrame >> 1 ? 1500 : 0;
+        for (const axis of [Math.sin(phase), Math.cos(phase), 1]) {
+          const v = Math.round(MOCK_ACC_AMPLITUDE_MG * axis + spike) & 0xFFFF;
+          body.push(v & 0xFF, (v >> 8) & 0xFF);
+        }
+      }
+    }
+    s.emitted += perFrame;
+    if (type === PMD_TYPE_ACC) this._tapPending = false;
+    if (this.dropFramesLeft > 0 && (this.dropFramesType === null || this.dropFramesType === type)) { this.dropFramesLeft--; return; }
+    const header = new Uint8Array(PMD_HEADER_BYTES);
+    header[0] = type;
+    new DataView(header.buffer).setBigUint64(1, frameNs, true);
+    header[9] = type === PMD_TYPE_ECG ? ECG_FRAME_TYPE : ACC_FRAME_TYPE;
+    this.sendPmdData([...header, ...body]);
+  }
+
+  // Sends raw bytes on the PMD data characteristic (a test can send a malformed or delta-compressed frame this way).
+  sendPmdData(bytes) { this.chars.data._notify(bytes); }
+  // Sends raw bytes on the PMD control point as a notification.
+  sendPmdControl(bytes) { this.chars.control._notify(bytes); }
+
+  isStreaming(type) { return this.streams.has(type); }
+  sentCommands() { return this.commandLog.map((c) => c.map((b) => b.toString(16).padStart(2, "0")).join(" ")); }
+  sentCommand(bytes) { return this.commandLog.some((c) => sameBytes(c, Array.from(bytes))); }
+}
+
+// What navigator.bluetooth offers, with one mock strap behind it. It refuses to run without a heart rate filter
+// and keeps the list of services the page asked for, so the mock strap can refuse the ones the page forgot.
+class MockBluetooth {
+  constructor(device = new MockPolarDevice()) {
+    this.device = device;
+    this.requests = [];
+  }
+  async requestDevice(options) {
+    this.requests.push(options);
+    const services = new Set(options.optionalServices ?? []);
+    for (const f of options.filters ?? []) for (const s of f.services ?? []) services.add(s);
+    this.device._allowed = services;
+    return this.device;
+  }
+}
+
+return { HEART_RATE_SERVICE_UUID, HEART_RATE_MEASUREMENT_UUID, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID, PMD_SERVICE_UUID, PMD_CONTROL_UUID, PMD_DATA_UUID, REQUEST_DEVICE_OPTIONS, HR_FLAG_UINT16, HR_FLAG_CONTACT_DETECTED, HR_FLAG_CONTACT_SUPPORTED, HR_FLAG_ENERGY_PRESENT, HR_FLAG_RR_PRESENT, RR_UNITS_PER_SECOND, PMD_TYPE_ECG, PMD_TYPE_PPG, PMD_TYPE_ACC, PMD_TYPE_PPI, PMD_TYPE_GYRO, PMD_TYPE_MAGNETOMETER, PMD_TYPE_SDK_MODE, PMD_TYPE_NAMES, PMD_OP_GET_SETTINGS, PMD_OP_START, PMD_OP_STOP, PMD_FEATURE_MARKER, PMD_RESPONSE_MARKER, PMD_STOPPED_MARKER, PMD_SETTING_SAMPLE_RATE, PMD_SETTING_RESOLUTION, PMD_SETTING_RANGE, PMD_SETTING_CHANNELS, PMD_SETTING_CONVERSION_FACTOR, ECG_SAMPLE_RATE_HZ, ECG_RESOLUTION_BITS, ECG_BYTES_PER_SAMPLE, ACC_SAMPLE_RATES_HZ, ACC_RANGES_G, ACC_DEFAULT_RATE_HZ, ACC_DEFAULT_RANGE_G, ACC_RESOLUTION_BITS, ACC_BYTES_PER_AXIS, ACC_AXES, PMD_STATUS_SUCCESS, PMD_STATUS_WORDS, PMD_HEADER_BYTES, PMD_TYPE_MASK, PMD_FRAME_DELTA_FLAG, PMD_FRAME_TYPE_MASK, ECG_FRAME_TYPE, ACC_FRAME_TYPE, POLAR_EPOCH_UNIX_NS, NS_PER_SECOND, PolarProtocolError, toBytes, pmdQueryCommand, pmdStopCommand, pmdStartCommand, ecgStartCommand, accStartCommand, pmdStatusWord, featureTypes, parsePmdControl, parsePmdSettings, parseHeartRate, parsePmdFrameHeader, decodeEcgSamples, decodeAccSamples, decodePmdFrame, sampleTimesNs, deviceSecondsBetween, MOCK_ECG_SAMPLES_PER_FRAME, MOCK_ACC_SAMPLES_PER_FRAME, MOCK_DEVICE_START_NS, MOCK_HEART_RATE_BPM, MOCK_BATTERY_PERCENT, MOCK_ECG_AMPLITUDE_UV, MOCK_ECG_HZ, MOCK_ACC_AMPLITUDE_MG, MOCK_ACC_HZ, MOCK_DEVICE_NAME, MOCK_DEVICE_ID, MockPolarDevice, MockBluetooth };
+})();
+// ===== polar-ble.js (sha256 90227cb60c64), copied from /home/claude/chrome/backend/polar-ble.js =====
+const __mod_polar_ble = (() => {
+// SPDX-License-Identifier: GPL-3.0-or-later
+// polar-ble.js
+//
+// Connects to a Polar H10 through Web Bluetooth, starts and stops its streams, and hands decoded
+// batches to callbacks. Every byte-level fact lives in polar-protocol.js; this file only talks to the
+// browser and keeps track of state. It has no page references, so tests can give it a MockBluetooth.
+//
+// Every batch carries the host arrival time (performance.now(), milliseconds) read the moment the
+// notification arrived, next to the strap's own device times. Heart rate and RR have no device time,
+// so arrival time is all they have.
+//
+// Callbacks (all optional):
+//   onHeartRate({arrivalMs, flags (the first byte, as sent), heartRateBpm, contactSupported, contactDetected, energyExpended, rrIntervalsMs})
+//   onEcg({arrivalMs, frameDeviceTimeNs, deviceTimesNs, samplesUv})            samplesUv: Int32Array
+//   onAcc({arrivalMs, frameDeviceTimeNs, deviceTimesNs, xMg, yMg, zMg})         Int16Arrays, nominalRateHz included
+//   onBattery({arrivalMs, percent})
+//   onStreamStopped({arrivalMs, measurementTypes})                              the strap ended streams by itself
+//   onDisconnect({arrivalMs, requested})                                        requested: this class asked for it
+//   onError(error)                                                              a PolarProtocolError or a browser error
+// deviceTimesNs are BigInt nanoseconds since 2000-01-01T00:00:00Z on the strap's clock, oldest sample first.
+
+const {
+  REQUEST_DEVICE_OPTIONS, HEART_RATE_SERVICE_UUID, HEART_RATE_MEASUREMENT_UUID, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID,
+  PMD_SERVICE_UUID, PMD_CONTROL_UUID, PMD_DATA_UUID, PMD_TYPE_ECG, PMD_TYPE_ACC, PMD_STATUS_SUCCESS, ECG_SAMPLE_RATE_HZ,
+  ACC_DEFAULT_RATE_HZ, ACC_DEFAULT_RANGE_G, PMD_TYPE_NAMES, PMD_OP_GET_SETTINGS, PMD_OP_START, PMD_OP_STOP,
+  PolarProtocolError, pmdQueryCommand, pmdStopCommand, ecgStartCommand, accStartCommand, parsePmdControl, parsePmdSettings,
+  parseHeartRate, decodePmdFrame, sampleTimesNs, toBytes,
+} = __mod_polar_protocol;
+
+const CONTROL_TIMEOUT_MS = 5000;     // how long to wait for the strap to answer a control-point command
+const VALUE_EVENT = "characteristicvaluechanged";
+const DISCONNECT_EVENT = "gattserverdisconnected";
+
+const OP_WORDS = { [PMD_OP_GET_SETTINGS]: "settings", [PMD_OP_START]: "start", [PMD_OP_STOP]: "stop" };
+const typeName = (type) => PMD_TYPE_NAMES[type] ?? `type ${type}`;
+
+class PolarH10Ble {
+  #cb;
+  #bluetooth;
+  #now;
+  #device = null;
+  #chars = {};
+  #listeners = [];
+  #queue = Promise.resolve();        // Chrome advises one GATT operation at a time
+  #pending = new Map();              // "opcode:type" -> a command waiting for its reply
+  #started = new Map();              // measurement type -> {nominalRateHz}
+  #prevFrameNs = new Map();          // measurement type -> the previous frame's device time
+  #features = [];
+  #connected = false;
+  #closing = false;
+
+  constructor(callbacks = {}, { bluetooth = globalThis.navigator?.bluetooth, now = () => performance.now(), timeoutMs = CONTROL_TIMEOUT_MS } = {}) {
+    this.#cb = callbacks;
+    this.#bluetooth = bluetooth;
+    this.#now = now;
+    this.timeoutMs = timeoutMs;
+  }
+
+  get connected() { return this.#connected; }
+  get deviceName() { return this.#device?.name ?? null; }
+  get streamingTypes() { return [...this.#started.keys()]; }
+
+  // Must run inside a click or tap: the browser shows its device chooser. Resolves with what the strap offers.
+  async connect() {
+    if (!this.#bluetooth) throw new PolarProtocolError("This browser has no Web Bluetooth, so it cannot connect to a Polar H10. Use Chrome.");
+    this.#closing = false;
+    const device = await this.#bluetooth.requestDevice(REQUEST_DEVICE_OPTIONS);
+    return this.#open(device);
+  }
+
+  // Connects again to the strap chosen by connect(), without the chooser (Chrome keeps the permission for as long as the page
+  // stays open). Streams are not restarted; the caller starts the ones it wants. Throws while the strap is out of reach.
+  async reconnect() {
+    if (!this.#device) throw new PolarProtocolError("No Polar H10 has been chosen yet, so there is nothing to reconnect to. Press Connect first.");
+    if (this.#connected) throw new PolarProtocolError("The Polar H10 is already connected.");
+    this.#closing = false;
+    return this.#open(this.#device);
+  }
+
+  get hasDevice() { return this.#device !== null; }
+
+  async #open(device) {
+    for (const [target, type, fn] of this.#listeners) target.removeEventListener(type, fn);   // listeners from an earlier connection
+    this.#listeners = [];
+    this.#chars = {};
+    this.#started.clear();
+    this.#prevFrameNs.clear();
+    this.#device = device;
+    this.#listen(device, DISCONNECT_EVENT, () => this.#onGattDisconnected());
+    const server = await device.gatt.connect();
+    this.#connected = true;
+    try {
+      const hr = await this.#characteristic(server, HEART_RATE_SERVICE_UUID, HEART_RATE_MEASUREMENT_UUID);
+      this.#listen(hr, VALUE_EVENT, (e) => this.#onHeartRate(e.target.value));
+      await this.#gatt(() => hr.startNotifications());
+      this.#chars.hr = hr;
+
+      const batteryPercent = await this.#connectBattery(server);
+
+      // Setup order: notifications on the control point, read it once for the feature list, notifications on the data stream (notes section 2).
+      const control = await this.#characteristic(server, PMD_SERVICE_UUID, PMD_CONTROL_UUID);
+      const data = await this.#characteristic(server, PMD_SERVICE_UUID, PMD_DATA_UUID);
+      this.#listen(control, VALUE_EVENT, (e) => this.#onControl(e.target.value));
+      this.#listen(data, VALUE_EVENT, (e) => this.#onPmdData(e.target.value));
+      await this.#gatt(() => control.startNotifications());
+      this.#chars.control = control;
+      const features = parsePmdControl(await this.#gatt(() => control.readValue()));
+      if (features.kind !== "features") throw new PolarProtocolError("The Polar H10 did not answer the feature read as expected.");
+      this.#features = features.measurementTypes;
+      await this.#gatt(() => data.startNotifications());
+      this.#chars.data = data;
+      return { deviceName: device.name ?? null, deviceId: device.id ?? null, batteryPercent, measurementTypes: [...this.#features] };
+    } catch (error) {
+      await this.disconnect().catch(() => {});
+      throw error;
+    }
+  }
+
+  // The settings the strap offers for one measurement type: {sampleRatesHz, resolutionsBits, ranges, channels, conversionFactors}.
+  async querySettings(type) {
+    const reply = await this.#command(pmdQueryCommand(type), PMD_OP_GET_SETTINGS, type);
+    return parsePmdSettings(reply.params);
+  }
+
+  // Starts ECG and/or the accelerometer. acc: {sampleRateHz, rangeG}. Bad values throw before anything is sent.
+  async startStreams({ ecg = true, acc = { sampleRateHz: ACC_DEFAULT_RATE_HZ, rangeG: ACC_DEFAULT_RANGE_G } } = {}) {
+    this.#requireConnected();
+    const plan = [];
+    if (ecg) plan.push({ type: PMD_TYPE_ECG, command: ecgStartCommand(), nominalRateHz: ECG_SAMPLE_RATE_HZ });
+    if (acc) plan.push({ type: PMD_TYPE_ACC, command: accStartCommand(acc), nominalRateHz: acc.sampleRateHz ?? ACC_DEFAULT_RATE_HZ });
+    for (const { type } of plan) {
+      if (!this.#features.includes(type)) throw new PolarProtocolError(`This Polar H10 does not report ${typeName(type)} streaming.`);
+    }
+    for (const { type, command, nominalRateHz } of plan) {
+      this.#prevFrameNs.delete(type);
+      await this.#command(command, PMD_OP_START, type);
+      this.#started.set(type, { nominalRateHz });
+    }
+  }
+
+  // Sends a stop for every stream this class started. A stop that fails is reported through onError and the rest still go out.
+  async stopStreams() {
+    for (const type of [...this.#started.keys()]) {
+      this.#started.delete(type);
+      if (!this.#connected) continue;
+      try { await this.#command(pmdStopCommand(type), PMD_OP_STOP, type); }
+      catch (error) { this.#cb.onError?.(error); }
+    }
+  }
+
+  // Stops both streams, turns notifications off, then disconnects. The strap stays on until streams are stopped, so the stop comes first.
+  async disconnect() {
+    this.#closing = true;
+    if (this.#connected) {
+      await this.stopStreams();
+      for (const key of ["data", "control", "hr"]) {
+        try { await this.#gatt(() => this.#chars[key]?.stopNotifications()); } catch { /* the link may already be gone */ }
+      }
+      this.#device?.gatt?.disconnect();
+    }
+    this.#markDisconnected(true);
+    for (const [target, type, fn] of this.#listeners) target.removeEventListener(type, fn);
+    this.#listeners = [];
+    this.#chars = {};
+  }
+
+  // --- internals -------------------------------------------------------------------------------
+
+  #requireConnected() {
+    if (!this.#connected) throw new PolarProtocolError("The Polar H10 is not connected.");
+  }
+
+  #listen(target, type, fn) {
+    target.addEventListener(type, fn);
+    this.#listeners.push([target, type, fn]);
+  }
+
+  // Runs GATT operations one after another.
+  #gatt(fn) {
+    const run = this.#queue.then(fn);
+    this.#queue = run.catch(() => {});
+    return run;
+  }
+
+  async #characteristic(server, serviceUuid, characteristicUuid) {
+    const service = await this.#gatt(() => server.getPrimaryService(serviceUuid));
+    return this.#gatt(() => service.getCharacteristic(characteristicUuid));
+  }
+
+  // The battery level is a convenience: a strap or browser that refuses it does not stop the connection.
+  async #connectBattery(server) {
+    try {
+      const level = await this.#characteristic(server, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID);
+      const percent = (await this.#gatt(() => level.readValue())).getUint8(0);
+      this.#cb.onBattery?.({ arrivalMs: this.#now(), percent });
+      this.#listen(level, VALUE_EVENT, (e) => this.#cb.onBattery?.({ arrivalMs: this.#now(), percent: e.target.value.getUint8(0) }));
+      try { await this.#gatt(() => level.startNotifications()); } catch { /* reading once is enough */ }
+      return percent;
+    } catch (error) {
+      this.#cb.onError?.(error);
+      return null;
+    }
+  }
+
+  // Writes a command and waits for the strap's reply. A reply with the "more" byte set continues in the next
+  // notification for the same command; the notes do not confirm what a real strap does there, so this joins the parameters.
+  async #command(bytes, opcode, type) {
+    this.#requireConnected();
+    const key = `${opcode}:${type}`;
+    const reply = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.#pending.delete(key);
+        reject(new PolarProtocolError(`The Polar H10 did not answer the ${OP_WORDS[opcode]} request for ${typeName(type)} within ${this.timeoutMs / 1000} s.`));
+      }, this.timeoutMs);
+      this.#pending.set(key, { resolve, reject, timer, params: [] });
+    });
+    reply.catch(() => {});                // a disconnect during the write rejects it before the await below picks it up
+    try {
+      await this.#gatt(() => this.#chars.control.writeValueWithResponse(bytes));
+    } catch (error) {
+      const p = this.#pending.get(key);
+      if (p) { clearTimeout(p.timer); this.#pending.delete(key); }
+      throw error;
+    }
+    const answer = await reply;
+    if (answer.status !== PMD_STATUS_SUCCESS) {
+      throw new PolarProtocolError(`The Polar H10 refused the ${OP_WORDS[opcode]} request for ${typeName(type)}: ${answer.statusWord}.`, { status: answer.status, statusWord: answer.statusWord });
+    }
+    return answer;
+  }
+
+  #onControl(value) {
+    const arrivalMs = this.#now();
+    let message;
+    try { message = parsePmdControl(value); } catch (error) { this.#cb.onError?.(error); return; }
+    if (message.kind === "response") {
+      const key = `${message.opcode}:${message.measurementType}`;
+      const p = this.#pending.get(key);
+      if (!p) return;
+      p.params.push(...message.params);
+      if (message.more && message.status === PMD_STATUS_SUCCESS) return;
+      clearTimeout(p.timer);
+      this.#pending.delete(key);
+      p.resolve({ status: message.status, statusWord: message.statusWord, params: Uint8Array.from(p.params) });
+    } else if (message.kind === "stopped") {
+      for (const type of message.measurementTypes) this.#started.delete(type);
+      this.#cb.onStreamStopped?.({ arrivalMs, measurementTypes: message.measurementTypes });
+    }
+  }
+
+  #onHeartRate(value) {
+    const arrivalMs = this.#now();
+    try { this.#cb.onHeartRate?.({ arrivalMs, flags: toBytes(value)[0], ...parseHeartRate(value) }); } catch (error) { this.#cb.onError?.(error); }
+  }
+
+  #onPmdData(value) {
+    const arrivalMs = this.#now();
+    try {
+      const frame = decodePmdFrame(toBytes(value));
+      const started = this.#started.get(frame.measurementType);
+      if (!started) return;                                      // a frame from a stream this class did not start
+      const deviceTimesNs = sampleTimesNs(frame.deviceTimeNs, this.#prevFrameNs.get(frame.measurementType), frame.sampleCount, started.nominalRateHz);
+      this.#prevFrameNs.set(frame.measurementType, frame.deviceTimeNs);
+      const common = { arrivalMs, frameDeviceTimeNs: frame.deviceTimeNs, deviceTimesNs, nominalRateHz: started.nominalRateHz };
+      if (frame.ecg) this.#cb.onEcg?.({ ...common, samplesUv: frame.ecg });
+      else this.#cb.onAcc?.({ ...common, xMg: frame.acc.x, yMg: frame.acc.y, zMg: frame.acc.z });
+    } catch (error) {
+      this.#cb.onError?.(error);
+    }
+  }
+
+  #onGattDisconnected() { this.#markDisconnected(this.#closing); }
+
+  // Reports a disconnect once, however many routes lead to it.
+  #markDisconnected(requested) {
+    if (!this.#connected) return;
+    this.#connected = false;
+    this.#started.clear();
+    for (const [key, p] of this.#pending) {
+      clearTimeout(p.timer);
+      p.reject(new PolarProtocolError("The Polar H10 disconnected before it answered."));
+      this.#pending.delete(key);
+    }
+    this.#cb.onDisconnect?.({ arrivalMs: this.#now(), requested });
+  }
+}
+
+return { CONTROL_TIMEOUT_MS, PolarH10Ble };
+})();
+const { HEART_RATE_SERVICE_UUID, HEART_RATE_MEASUREMENT_UUID, BATTERY_SERVICE_UUID, BATTERY_LEVEL_UUID, PMD_SERVICE_UUID, PMD_CONTROL_UUID, PMD_DATA_UUID, REQUEST_DEVICE_OPTIONS, HR_FLAG_UINT16, HR_FLAG_CONTACT_DETECTED, HR_FLAG_CONTACT_SUPPORTED, HR_FLAG_ENERGY_PRESENT, HR_FLAG_RR_PRESENT, RR_UNITS_PER_SECOND, PMD_TYPE_ECG, PMD_TYPE_PPG, PMD_TYPE_ACC, PMD_TYPE_PPI, PMD_TYPE_GYRO, PMD_TYPE_MAGNETOMETER, PMD_TYPE_SDK_MODE, PMD_TYPE_NAMES, PMD_OP_GET_SETTINGS, PMD_OP_START, PMD_OP_STOP, PMD_FEATURE_MARKER, PMD_RESPONSE_MARKER, PMD_STOPPED_MARKER, PMD_SETTING_SAMPLE_RATE, PMD_SETTING_RESOLUTION, PMD_SETTING_RANGE, PMD_SETTING_CHANNELS, PMD_SETTING_CONVERSION_FACTOR, ECG_SAMPLE_RATE_HZ, ECG_RESOLUTION_BITS, ECG_BYTES_PER_SAMPLE, ACC_SAMPLE_RATES_HZ, ACC_RANGES_G, ACC_DEFAULT_RATE_HZ, ACC_DEFAULT_RANGE_G, ACC_RESOLUTION_BITS, ACC_BYTES_PER_AXIS, ACC_AXES, PMD_STATUS_SUCCESS, PMD_STATUS_WORDS, PMD_HEADER_BYTES, PMD_TYPE_MASK, PMD_FRAME_DELTA_FLAG, PMD_FRAME_TYPE_MASK, ECG_FRAME_TYPE, ACC_FRAME_TYPE, POLAR_EPOCH_UNIX_NS, NS_PER_SECOND, PolarProtocolError, toBytes, pmdQueryCommand, pmdStopCommand, pmdStartCommand, ecgStartCommand, accStartCommand, pmdStatusWord, featureTypes, parsePmdControl, parsePmdSettings, parseHeartRate, parsePmdFrameHeader, decodeEcgSamples, decodeAccSamples, decodePmdFrame, sampleTimesNs, deviceSecondsBetween, MOCK_ECG_SAMPLES_PER_FRAME, MOCK_ACC_SAMPLES_PER_FRAME, MOCK_DEVICE_START_NS, MOCK_HEART_RATE_BPM, MOCK_BATTERY_PERCENT, MOCK_ECG_AMPLITUDE_UV, MOCK_ECG_HZ, MOCK_ACC_AMPLITUDE_MG, MOCK_ACC_HZ, MOCK_DEVICE_NAME, MOCK_DEVICE_ID, MockPolarDevice, MockBluetooth, CONTROL_TIMEOUT_MS, PolarH10Ble } = { ...__mod_polar_protocol, ...__mod_polar_ble };
+</script>
+
+<script>
+(() => {
+"use strict";
+const $ = (id) => document.getElementById(id);
+// ===== 3D accelerometer view and breathing filter, carried over from the accelerometer demo (names AS and dstats renamed AS and dstats) =====
+const CAP = 12000;                    // samples kept (60 s at 200 per second)
+const WINDOW_S = 30;                  // strip chart and breathing chart span
+const COV_S = 20;                     // window for the direction of greatest variance
+const BREATH_HZ_PROBE = [0.1, 0.2, 0.5];   // frequencies where the filter delay is reported
+const AS = { magnify: 10, trailS: 10, smoothS: 0.1, tauS: 20, hpHz: 0.05, lpHz: 1, auto: true, delayMs: 300 };
+
+// Log-scale sliders (0..100) for tau, high-pass and low-pass.
+const LOGS = {
+  tau: { el: "rgTau", lo: 2, hi: 120, key: "tauS", fmt: (v) => v.toFixed(v < 10 ? 1 : 0) + " s" },
+  hp:  { el: "rgHp",  lo: 0.01, hi: 0.5, key: "hpHz", fmt: (v) => v.toFixed(3) + " Hz" },
+  lp:  { el: "rgLp",  lo: 0.2, hi: 10, key: "lpHz", fmt: (v) => v.toFixed(2) + " Hz" },
+};
+const fromSlider = (L, pos) => L.lo * Math.pow(L.hi / L.lo, pos / 100);
+const toSlider = (L, v) => 100 * Math.log(v / L.lo) / Math.log(L.hi / L.lo);
+// ---------------------------------------------------------------------------------------------
+// Filters (all causal)
+// ---------------------------------------------------------------------------------------------
+// Second-order Butterworth sections from the RBJ audio-EQ cookbook (Q = 1/sqrt 2).
+class Biquad {
+  constructor() { this.b0 = 1; this.b1 = 0; this.b2 = 0; this.a1 = 0; this.a2 = 0; this.reset(); }
+  reset() { this.x1 = this.x2 = this.y1 = this.y2 = 0; }
+  design(kind, f, fs) {
+    const w0 = 2 * Math.PI * f / fs, c = Math.cos(w0), alpha = Math.sin(w0) / (2 * Math.SQRT1_2);
+    const a0 = 1 + alpha;
+    if (kind === "lp") { this.b0 = (1 - c) / 2; this.b1 = 1 - c; this.b2 = (1 - c) / 2; }
+    else { this.b0 = (1 + c) / 2; this.b1 = -(1 + c); this.b2 = (1 + c) / 2; }
+    this.b0 /= a0; this.b1 /= a0; this.b2 /= a0; this.a1 = -2 * c / a0; this.a2 = (1 - alpha) / a0;
+  }
+  step(x) {
+    const y = this.b0 * x + this.b1 * this.x1 + this.b2 * this.x2 - this.a1 * this.y1 - this.a2 * this.y2;
+    this.x2 = this.x1; this.x1 = x; this.y2 = this.y1; this.y1 = y;
+    return y;
+  }
+  // Group delay in seconds at frequency f: Re(S_N / N) - Re(S_D / D), with N, D the numerator and denominator at e^{jw}.
+  groupDelaySec(f, fs) {
+    const w = 2 * Math.PI * f / fs;
+    const sums = (c) => {
+      let re = 0, im = 0, sre = 0, sim = 0;
+      for (let k = 0; k < c.length; k++) {
+        const cr = Math.cos(w * k), ci = -Math.sin(w * k);
+        re += c[k] * cr; im += c[k] * ci; sre += k * c[k] * cr; sim += k * c[k] * ci;
+      }
+      return (sre * re + sim * im) / (re * re + im * im);
+    };
+    return (sums([this.b0, this.b1, this.b2]) - sums([1, this.a1, this.a2])) / fs;
+  }
+}
+function makeBandpass(hpHz, lpHz, fs) {
+  const hp = new Biquad(), lp = new Biquad();
+  const lpEff = Math.min(lpHz, 0.45 * fs), hpEff = Math.min(hpHz, lpEff * 0.8);
+  hp.design("hp", hpEff, fs); lp.design("lp", lpEff, fs);
+  return { hp, lp, hpEff, lpEff, step: (x) => lp.step(hp.step(x)), delaySec: (f) => hp.groupDelaySec(f, fs) + lp.groupDelaySec(f, fs) };
+}
+
+// Direction of greatest variance over the last COV_S seconds of the deviation vector.
+class PrincipalAxis {
+  constructor(fs) {
+    this.len = Math.max(8, Math.round(COV_S * fs));
+    this.d = new Float64Array(this.len * 3); this.count = 0; this.head = 0; this.pushes = 0;
+    this.s = new Float64Array(3); this.q = new Float64Array(6);   // sums; sums of products xx xy xz yy yz zz
+    this.axis = null; this.every = Math.max(1, Math.round(fs / 25)); this.fs = fs;
+  }
+  push(dx, dy, dz) {
+    const i = this.head * 3;
+    if (this.count === this.len) this.#add(this.d[i], this.d[i + 1], this.d[i + 2], -1); else this.count++;
+    this.d[i] = dx; this.d[i + 1] = dy; this.d[i + 2] = dz;
+    this.#add(dx, dy, dz, 1);
+    this.head = (this.head + 1) % this.len;
+    if (++this.pushes % 2000 === 0) this.#recompute();           // keeps rounding error from piling up
+    if (this.pushes % this.every === 0 && this.count >= this.fs) this.#update();
+    return this.axis;
+  }
+  #add(x, y, z, k) {
+    this.s[0] += k * x; this.s[1] += k * y; this.s[2] += k * z;
+    this.q[0] += k * x * x; this.q[1] += k * x * y; this.q[2] += k * x * z;
+    this.q[3] += k * y * y; this.q[4] += k * y * z; this.q[5] += k * z * z;
+  }
+  #recompute() {
+    this.s.fill(0); this.q.fill(0);
+    for (let j = 0; j < this.count; j++) this.#add(this.d[j * 3], this.d[j * 3 + 1], this.d[j * 3 + 2], 1);
+  }
+  #update() {
+    const n = this.count, mx = this.s[0] / n, my = this.s[1] / n, mz = this.s[2] / n, q = this.q;
+    const cxx = q[0] / n - mx * mx, cxy = q[1] / n - mx * my, cxz = q[2] / n - mx * mz;
+    const cyy = q[3] / n - my * my, cyz = q[4] / n - my * mz, czz = q[5] / n - mz * mz;
+    if (!(cxx + cyy + czz > 1e-9)) return;
+    const prev = this.axis;
+    let v = prev ? prev.slice() : [1, 1, 1];
+    for (let it = 0; it < (prev ? 3 : 12); it++) {               // power iteration, warm-started from the last axis
+      const a = cxx * v[0] + cxy * v[1] + cxz * v[2], b = cxy * v[0] + cyy * v[1] + cyz * v[2], c = cxz * v[0] + cyz * v[1] + czz * v[2];
+      const m = Math.hypot(a, b, c); if (m === 0) return;
+      v = [a / m, b / m, c / m];
+    }
+    if (prev) { if (v[0] * prev[0] + v[1] * prev[1] + v[2] * prev[2] < 0) v = v.map((t) => -t); }
+    else { let k = 0; for (let i = 1; i < 3; i++) if (Math.abs(v[i]) > Math.abs(v[k])) k = i; if (v[k] < 0) v = v.map((t) => -t); }
+    this.axis = v;
+  }
+}
+// ---------------------------------------------------------------------------------------------
+// Sample store and the live pipeline
+// ---------------------------------------------------------------------------------------------
+const buf = { n: 0, t: new Float64Array(CAP) };
+const FIELDS = ["x", "y", "z", "ax", "ay", "az", "p", "b", "sx", "sy", "sz"];     // raw xyz, slow average xyz, projected, band-passed, lightly smoothed xyz (3D view only)
+for (const f of FIELDS) buf[f] = new Float32Array(CAP);
+
+const pipe = { fs: 200, init: false, avg: [0, 0, 0], sm: [0, 0, 0], axisCalc: null, bp: null, alpha: 0, lastT: -Infinity };
+function applyFilterSettings() {
+  pipe.alpha = 1 - Math.exp(-1 / (pipe.fs * AS.tauS));
+  const keep = pipe.bp;
+  pipe.bp = makeBandpass(AS.hpHz, AS.lpHz, pipe.fs);
+  if (keep) { pipe.bp.hp.x1 = keep.hp.x1; pipe.bp.hp.x2 = keep.hp.x2; pipe.bp.hp.y1 = keep.hp.y1; pipe.bp.hp.y2 = keep.hp.y2;
+              pipe.bp.lp.x1 = keep.lp.x1; pipe.bp.lp.x2 = keep.lp.x2; pipe.bp.lp.y1 = keep.lp.y1; pipe.bp.lp.y2 = keep.lp.y2; }
+  updateFilterText();
+}
+function resetPipeline(fs) {
+  buf.n = 0; pipe.fs = fs; pipe.init = false; pipe.lastT = -Infinity;
+  pipe.axisCalc = new PrincipalAxis(fs); pipe.bp = null;
+  applyFilterSettings();
+  clock.reset(); dstats.reset(); view.frozenT = null; view.under = false; dstats.late = 0; view.extraMs = 0; view.autoSet = false;
+}
+function processSample(t, x, y, z) {
+  if (!pipe.init) { pipe.avg = [x, y, z]; pipe.sm = [x, y, z]; pipe.init = true; }
+  const as = AS.smoothS > 0 ? 1 - Math.exp(-1 / (pipe.fs * AS.smoothS)) : 1;
+  pipe.sm[0] += as * (x - pipe.sm[0]); pipe.sm[1] += as * (y - pipe.sm[1]); pipe.sm[2] += as * (z - pipe.sm[2]);
+  const A = pipe.avg, dx = x - A[0], dy = y - A[1], dz = z - A[2];
+  const ax0 = A[0], ay0 = A[1], az0 = A[2];
+  A[0] += pipe.alpha * dx; A[1] += pipe.alpha * dy; A[2] += pipe.alpha * dz;
+  const axis = pipe.axisCalc.push(dx, dy, dz);
+  const p = axis ? dx * axis[0] + dy * axis[1] + dz * axis[2] : 0;
+  const b = pipe.bp.step(p);
+  const i = buf.n % CAP;
+  if (!(t > pipe.lastT)) t = pipe.lastT + 0.001;              // keep times strictly rising
+  pipe.lastT = t;
+  buf.t[i] = t; buf.x[i] = x; buf.y[i] = y; buf.z[i] = z; buf.ax[i] = ax0; buf.ay[i] = ay0; buf.az[i] = az0; buf.p[i] = p; buf.b[i] = b; buf.sx[i] = pipe.sm[0]; buf.sy[i] = pipe.sm[1]; buf.sz[i] = pipe.sm[2];
+  buf.n++;
+}
+// ---------------------------------------------------------------------------------------------
+// Device time to screen time
+// ---------------------------------------------------------------------------------------------
+// Device times are mapped to performance.now() with one offset taken from the first packet (the packet's newest sample
+// arrived about "now"). The offset then slews at most 1 ms per packet toward the smallest delay seen in the last 15 s,
+// which follows clock drift and removes the first packet's own lag.
+const clock = {
+  reset() { this.firstNs = null; this.offset = 0; this.lastNs = null; this.buckets = new Map(); this.jumps = 0; },
+  convert(arrivalMs, ns) {
+    const n = ns.length;
+    if (this.firstNs === null || ns[0] <= this.lastNs) {            // first packet, or the strap's clock went backward
+      if (this.firstNs !== null) this.jumps++;
+      this.firstNs = ns[0]; this.buckets.clear(); this.offset = null;
+    }
+    this.lastNs = ns[n - 1];
+    const dev = ns.map((v) => Number(v - this.firstNs) / 1e6);
+    const lag = arrivalMs - dev[n - 1];
+    const key = Math.floor(arrivalMs / 1000);
+    this.buckets.set(key, Math.min(this.buckets.get(key) ?? Infinity, lag));
+    let target = Infinity;
+    for (const [k, v] of this.buckets) { if (k < key - 15) this.buckets.delete(k); else target = Math.min(target, v); }
+    if (this.offset === null) this.offset = lag;
+    else this.offset += Math.max(-1, Math.min(1, target - this.offset));
+    return dev.map((d) => d + this.offset);
+  },
+};
+const dstats = {
+  reset() { this.arrivals = []; this.counts = []; this.pkts = 0; this.samples = 0; this.firstDev = null; this.lastDev = null; this.firstCount = 0; this.late = 0; },
+  add(arrivalMs, count, devLastMs) {
+    this.arrivals.push(arrivalMs); this.counts.push(count); if (this.arrivals.length > 41) { this.arrivals.shift(); this.counts.shift(); }
+    this.pkts++; this.samples += count;
+    if (this.firstDev === null) { this.firstDev = devLastMs; this.firstCount = count; }
+    this.lastDev = devLastMs;
+  },
+  intervals() { const a = this.arrivals, o = []; for (let i = 1; i < a.length; i++) o.push(a[i] - a[i - 1]); return o; },
+  median(v) { if (!v.length) return null; const s = [...v].sort((p, q) => p - q); return s[s.length >> 1]; },
+  rateHz() { return this.lastDev > this.firstDev ? (this.samples - this.firstCount) / ((this.lastDev - this.firstDev) / 1000) : null; },
+};
+const view = { yaw: 0.65, pitch: 0.42, frozenT: null, under: false, extraMs: 0, autoDelay: 300 };
+function updateAutoDelay() {
+  const med = dstats.median(dstats.intervals());
+  if (med === null || dstats.arrivals.length < 3) return;
+  const want = Math.round((1.15 * med + 25 + view.extraMs) / 5) * 5;
+  if (!view.autoSet || Math.abs(want - view.autoDelay) > 10) { view.autoDelay = want; view.autoSet = true; }
+}
+const delayMs = () => (AS.auto ? view.autoDelay : AS.delayMs);
+function updateFilterText() {
+  if (!pipe.bp) return;
+  const d = BREATH_HZ_PROBE.map((f) => pipe.bp.delaySec(f));
+  const eff = (pipe.bp.hpEff !== AS.hpHz || pipe.bp.lpEff !== AS.lpHz) ? ` (limits applied: ${pipe.bp.hpEff.toFixed(3)} to ${pipe.bp.lpEff.toFixed(2)} Hz)` : "";
+  $("fdelay").textContent = `The filters delay the breathing trace by about ${d[1].toFixed(2)} s for a breath every 5 s (0.2 Hz); ${d[0].toFixed(2)} s at 0.1 Hz and ${d[2].toFixed(2)} s at 0.5 Hz.${eff}`;
+}
+function bindSliders() {
+  for (const [name, L] of Object.entries(LOGS)) {
+    const el = $(L.el), out = $("v" + name[0].toUpperCase() + name.slice(1));
+    el.value = toSlider(L, AS[L.key]); out.textContent = L.fmt(AS[L.key]);
+    el.oninput = () => { AS[L.key] = fromSlider(L, Number(el.value)); out.textContent = L.fmt(AS[L.key]); applyFilterSettings(); };
+  }
+  const m = $("rgMag"); m.oninput = () => { AS.magnify = Number(m.value); $("vMag").textContent = AS.magnify + "×"; }; m.oninput();
+  const sm = $("rgSmooth"); sm.oninput = () => { AS.smoothS = Number(sm.value); $("vSmooth").textContent = AS.smoothS ? AS.smoothS.toFixed(2) + " s" : "off"; }; sm.oninput();
+  const t = $("rgTrail"); t.oninput = () => { AS.trailS = Number(t.value); $("vTrail").textContent = AS.trailS + " s"; }; t.oninput();
+  const d = $("rgDelay"), ck = $("ckDelayAuto");
+  d.oninput = () => { AS.delayMs = Number(d.value); };
+  ck.onchange = () => { AS.auto = ck.checked; d.disabled = AS.auto; if (!AS.auto) { d.value = view.autoDelay; AS.delayMs = view.autoDelay; } };
+  $("btnView").onclick = () => { view.yaw = 0.65; view.pitch = 0.42; };
+}
+// ---------------------------------------------------------------------------------------------
+// Drawing
+// ---------------------------------------------------------------------------------------------
+const C = {};
+function readColors() {
+  const cs = getComputedStyle(document.documentElement), g = (n) => cs.getPropertyValue(n).trim();
+  for (const k of ["panel", "ink", "muted", "line", "grid", "accent", "breath", "x", "y", "z"]) C[k] = g("--" + k);
+}
+function fit(cv) {
+  const dpr = window.devicePixelRatio || 1, w = Math.max(10, Math.round(cv.clientWidth * dpr)), h = Math.max(10, Math.round(cv.clientHeight * dpr));
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w: cv.clientWidth, h: cv.clientHeight };
+}
+const FONT = (px, bold) => `${bold ? "600 " : ""}${px}px system-ui, -apple-system, "Segoe UI", sans-serif`;
+
+// Finds the newest sample at or before time T (logical index), or -1.
+function findIndex(T) {
+  let lo = Math.max(0, buf.n - CAP), hi = buf.n - 1;
+  if (hi < lo || buf.t[lo % CAP] > T) return -1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (buf.t[mid % CAP] <= T) lo = mid; else hi = mid - 1; }
+  return lo;
+}
+function firstIndexAfter(T) {         // first logical index with t >= T
+  let lo = Math.max(0, buf.n - CAP), hi = buf.n;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (buf.t[mid % CAP] >= T) hi = mid; else lo = mid + 1; }
+  return lo;
+}
+function valueAt(idx, frac, name) {
+  const a = buf[name][idx % CAP];
+  if (frac <= 0 || idx + 1 >= buf.n) return a;
+  return a + (buf[name][(idx + 1) % CAP] - a) * frac;
+}
+// ---- 3D view ----
+const BOX = 1.25;                      // half width of the box, in g
+function makeProjector(w, h) {
+  const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw), cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+  const scale = 0.5 * Math.min(w * 0.92, h * 0.92) / (BOX * 1.55);
+  return (x, y, z) => {                // scene: x to the right, y away from the viewer, z up
+    const x1 = x * cy - y * sy, y1 = x * sy + y * cy;
+    const y2 = y1 * cp - z * sp, z2 = y1 * sp + z * cp;
+    const f = 1 / (1 + 0.07 * y2);
+    return [w / 2 + scale * x1 * f, h / 2 + 8 - scale * z2 * f, y2];
+  };
+}
+function line(ctx, a, b) { ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+function draw3d(cur, T) {
+  const { ctx, w, h } = fit($("c3d"));
+  ctx.clearRect(0, 0, w, h);
+  const P = makeProjector(w, h), B = BOX;
+  // floor grid
+  ctx.strokeStyle = C.grid; ctx.lineWidth = 1;
+  for (let g = -1; g <= 1; g += 0.5) { line(ctx, P(g, -B, -B), P(g, B, -B)); line(ctx, P(-B, g, -B), P(B, g, -B)); }
+  // box edges
+  ctx.strokeStyle = C.line;
+  const V = []; for (const x of [-B, B]) for (const y of [-B, B]) for (const z of [-B, B]) V.push([x, y, z]);
+  for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) {
+    const d = (V[i][0] !== V[j][0]) + (V[i][1] !== V[j][1]) + (V[i][2] !== V[j][2]);
+    if (d === 1) line(ctx, P(...V[i]), P(...V[j]));
+  }
+  // axes with labels and 1 g marks
+  const axes = [["x", [1, 0, 0], C.x], ["y", [0, 1, 0], C.y], ["z", [0, 0, 1], C.z]];
+  ctx.font = FONT(12, true); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  for (const [name, d, col] of axes) {
+    ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 1.5;
+    line(ctx, P(-B * d[0], -B * d[1], -B * d[2]), P(B * d[0], B * d[1], B * d[2]));
+    const e = P(B * d[0] * 1.1, B * d[1] * 1.1, B * d[2] * 1.1);
+    ctx.fillText(name + " (g)", e[0], e[1]);
+    ctx.font = FONT(10, false);
+    for (const v of [-1, 1]) { const p = P(v * d[0], v * d[1], v * d[2]); ctx.beginPath(); ctx.arc(p[0], p[1], 2.5, 0, 7); ctx.fill(); ctx.fillText(v > 0 ? "+1" : "-1", p[0] + (d[2] ? 12 : 0), p[1] + (d[2] ? 0 : 11)); }
+    ctx.font = FONT(12, true);
+  }
+  if (!cur) { ctx.fillStyle = C.muted; ctx.font = FONT(13); ctx.fillText("Waiting for accelerometer data.", w / 2, 18); return; }
+  const M = AS.magnify, g = 1 / 1000;
+  const disp = (v, a) => a + M * (v - a);
+  const tx = disp(cur.sx, cur.ax) * g, ty = disp(cur.sy, cur.ay) * g, tz = disp(cur.sz, cur.az) * g;
+  // trail of the tip
+  const i0 = firstIndexAfter(T - AS.trailS * 1000), i1 = cur.idx;
+  const count = i1 - i0;
+  if (count > 1) {
+    const stride = Math.max(1, Math.floor(count / 500));
+    ctx.lineWidth = 1.6; ctx.lineCap = "round";
+    let prev = null;
+    for (let i = i0; i <= i1; i += stride) {
+      const k = i % CAP, p = P(disp(buf.sx[k], buf.ax[k]) * g, disp(buf.sy[k], buf.ay[k]) * g, disp(buf.sz[k], buf.az[k]) * g);
+      if (prev) { const age = (i - i0) / count; ctx.strokeStyle = C.accent; ctx.globalAlpha = 0.08 + 0.75 * age; line(ctx, prev, p); }
+      prev = p;
+    }
+    ctx.globalAlpha = 1;
+  }
+  // drop line to the floor, arrow
+  const tip = P(tx, ty, tz), org = P(0, 0, 0), foot = P(tx, ty, -B);
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = C.muted; ctx.lineWidth = 1; line(ctx, tip, foot); ctx.setLineDash([]);
+  ctx.fillStyle = C.muted; ctx.beginPath(); ctx.arc(foot[0], foot[1], 3, 0, 7); ctx.fill();
+  ctx.strokeStyle = C.accent; ctx.fillStyle = C.accent; ctx.lineWidth = 3; line(ctx, org, tip);
+  const ang = Math.atan2(tip[1] - org[1], tip[0] - org[0]), hl = 13;
+  ctx.beginPath(); ctx.moveTo(tip[0], tip[1]);
+  ctx.lineTo(tip[0] - hl * Math.cos(ang - 0.4), tip[1] - hl * Math.sin(ang - 0.4));
+  ctx.lineTo(tip[0] - hl * Math.cos(ang + 0.4), tip[1] - hl * Math.sin(ang + 0.4)); ctx.closePath(); ctx.fill();
+  // the slow average direction, thin
+  const av = P(cur.ax * g, cur.ay * g, cur.az * g);
+  ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.setLineDash([6, 4]); line(ctx, org, av); ctx.setLineDash([]);
+  ctx.font = FONT(11); ctx.textAlign = "left";
+  ctx.strokeStyle = C.accent; ctx.lineWidth = 3; line(ctx, [8, 14], [30, 14]); ctx.fillStyle = C.ink; ctx.fillText("acceleration now", 36, 18);
+  ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.setLineDash([6, 4]); line(ctx, [8, 32], [30, 32]); ctx.setLineDash([]); ctx.fillText("slow average direction", 36, 36);
+  const out = Math.max(Math.abs(tx), Math.abs(ty), Math.abs(tz)) > B;
+  const len = Math.hypot(cur.sx, cur.sy, cur.sz);
+  const la = Math.hypot(cur.ax, cur.ay, cur.az), dot = (cur.sx * cur.ax + cur.sy * cur.ay + cur.sz * cur.az) / (len * la);
+  const tilt = Math.acos(Math.max(-1, Math.min(1, dot))) * 180 / Math.PI;
+  $("tilt").textContent = `Now: x ${cur.sx.toFixed(0)}, y ${cur.sy.toFixed(0)}, z ${cur.sz.toFixed(0)} milli-g; length ${len.toFixed(0)} milli-g; ${tilt.toFixed(2)} degrees away from the slow average direction.` + (out ? " The magnified tip is outside the box; lower Magnify." : "");
+}
+// ---- strip chart ----
+function timeGrid(ctx, x0, x1, y0, y1, T, labelY) {
+  ctx.lineWidth = 1; ctx.font = FONT(10); ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  for (let s = 0; s <= WINDOW_S; s += 5) {
+    const x = x0 + (x1 - x0) * (1 - s / WINDOW_S);
+    ctx.strokeStyle = C.grid; line(ctx, [x, y0], [x, y1]);
+    if (labelY) { ctx.fillStyle = C.muted; ctx.fillText(s === 0 ? "now" : "-" + s + " s", Math.min(x1 - 10, Math.max(x0 + 8, x)), labelY); }
+  }
+}
+function plotSeries(ctx, name, T, x0, x1, ymap, color, lw) {
+  const iA = firstIndexAfter(T - WINDOW_S * 1000), iB = findIndex(T);
+  if (iB < iA) return;
+  const span = iB - iA + 1, stride = Math.max(1, Math.floor(span / ((x1 - x0) * 1.5)));
+  ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineJoin = "round"; ctx.beginPath();
+  let first = true;
+  for (let i = iA; i <= iB; i += stride) {
+    const k = i % CAP, x = x1 - (T - buf.t[k]) / (WINDOW_S * 1000) * (x1 - x0), y = ymap(buf[name][k]);
+    if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+  }
+  ctx.lineTo(x1, ymap(valueAt(iB, (T - buf.t[iB % CAP]) / Math.max(1e-6, (iB + 1 < buf.n ? buf.t[(iB + 1) % CAP] - buf.t[iB % CAP] : Infinity)), name)));
+  ctx.stroke();
+}
+// ---- breathing trace ----
+let breathHalf = 10;
+function drawBreath(cur, T) {
+  const { ctx, w, h } = fit($("cbreath"));
+  ctx.clearRect(0, 0, w, h);
+  const L = 44, R = 84, y0 = 4, y1 = h - 16, x0 = L, x1 = w - R;
+  ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  timeGrid(ctx, x0, x1, y0, y1, T, h - 3);
+  if (!cur) return;
+  const iA = firstIndexAfter(T - WINDOW_S * 1000);
+  let mxb = 0; for (let i = iA; i <= cur.idx; i += 2) mxb = Math.max(mxb, Math.abs(buf.b[i % CAP]));
+  const tgt = Math.max(3, 1.2 * mxb);
+  breathHalf = tgt > breathHalf ? tgt : breathHalf + (tgt - breathHalf) * 0.03;
+  const ymap = (v) => (y0 + y1) / 2 - v / breathHalf * (y1 - y0 - 6) / 2;
+  ctx.strokeStyle = C.grid; line(ctx, [x0, ymap(0)], [x1, ymap(0)]);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
+  plotSeries(ctx, "p", T, x0, x1, ymap, C.muted, 1);        // before band-pass, faint
+  ctx.globalAlpha = 1; plotSeries(ctx, "b", T, x0, x1, ymap, C.breath, 2);
+  ctx.restore();
+  ctx.fillStyle = C.muted; ctx.font = FONT(10); ctx.textAlign = "right"; ctx.textBaseline = "alphabetic";
+  ctx.fillText("+" + breathHalf.toFixed(0), x0 - 4, y0 + 10); ctx.fillText("-" + breathHalf.toFixed(0), x0 - 4, y1 - 2); ctx.fillText("0", x0 - 4, ymap(0) + 3);
+  ctx.textAlign = "left"; ctx.fillStyle = C.breath; ctx.font = FONT(13, true); ctx.fillText(cur.b.toFixed(1), x1 + 6, (y0 + y1) / 2 - 6);
+  ctx.fillStyle = C.muted; ctx.font = FONT(10); ctx.fillText("milli-g", x1 + 6, (y0 + y1) / 2 + 8);
+  ctx.fillStyle = C.muted; ctx.fillText("gray: before filtering", x0 + 6, y0 + 12); ctx.fillStyle = C.breath; ctx.fillText("blue: after filtering", x0 + 6, y0 + 25);
+}
+// ---- dragging the 3D view ----
+{
+  const cv = $("c3d"); let drag = null;
+  cv.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY, yaw: view.yaw, pitch: view.pitch }; cv.setPointerCapture(e.pointerId); cv.classList.add("drag"); });
+  cv.addEventListener("pointermove", (e) => { if (!drag) return; view.yaw = drag.yaw + (e.clientX - drag.x) * 0.01; view.pitch = Math.max(-1.5, Math.min(1.5, drag.pitch + (e.clientY - drag.y) * 0.01)); });
+  const end = () => { drag = null; cv.classList.remove("drag"); };
+  cv.addEventListener("pointerup", end); cv.addEventListener("pointercancel", end);
+}
+
+// =============================================================================================
+// Polar H10 test bench: the page itself. The drivers above do all the Bluetooth work.
+// =============================================================================================
+
+// ---------------------------------------------------------------------------------------------
+// Settings (every threshold lives here)
+// ---------------------------------------------------------------------------------------------
+const BUILD = "bench-1";
+const RECONNECT_MS = 3000;              // wait between reconnect tries
+const MAX_ATTEMPTS = 20;                // tries before the page stops and offers the Reconnect button
+const FATAL_RECONNECT_ERRORS = ["SecurityError", "NotAllowedError", "NotSupportedError"];   // Chrome would need the chooser
+const GAP_FACTOR = 1.5;                 // a strap-time step above this many packet periods counts as lost packets
+const FLAT_P2P_UV = 3;                  // an ECG packet with a peak-to-peak range under this is flat (assumption, not a measured value)
+const FLAT_MIN_PACKETS = 4;             // flat packets in a row before the log says so (about 2 s of ECG)
+const HR_WINDOW_S = 120;                // heart rate and RR charts
+const RING_CAP = { ecg: 9000, acc: 13000, hr: 3000, rr: 4000 };
+const EVENT_ROWS_SHOWN = 400;
+const NAMES = { ecg: "ECG", acc: "accelerometer", hr: "heart rate" };
+const TAP = { micMinPeak: 0.02, accMinJerkMg: 150, noiseK: 10, refractoryMs: 300, matchMs: 600, maxRecordS: 180 };
+
+// ---------------------------------------------------------------------------------------------
+// Session data (what Save session data writes)
+// ---------------------------------------------------------------------------------------------
+const D = { packets: [], hr: [], events: [], sessions: [], t0: performance.now(), dirty: false };
+const wallIso = (perfMs) => new Date(performance.timeOrigin + perfMs).toISOString();
+const pad2 = (n) => String(n).padStart(2, "0");
+const clockText = (perfMs) => { const d = new Date(performance.timeOrigin + perfMs); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`; };
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+let logTimer = null;
+function logEvent(kind, text, level = "") {
+  const e = { perf: performance.now(), kind, text, level };
+  D.events.push(e); D.dirty = true;
+  if (!logTimer) logTimer = setTimeout(() => { logTimer = null; renderLog(); }, 60);
+}
+function renderLog() {
+  const rows = D.events.slice(-EVENT_ROWS_SHOWN).reverse().map((e) =>
+    `<div class="ev ${e.level}"><span class="when">${clockText(e.perf)}</span><span class="since">+${((e.perf - D.t0) / 1000).toFixed(1)} s</span><span class="kind">${escapeHtml(e.kind)}</span><span>${escapeHtml(e.text)}</span></div>`);
+  $("log").innerHTML = rows.join("") || '<div class="ev"><span class="when"></span><span class="since"></span><span class="kind"></span><span class="sub">Nothing yet.</span></div>';
+}
+
+// ---------------------------------------------------------------------------------------------
+// Trace buffers
+// ---------------------------------------------------------------------------------------------
+class Ring {
+  constructor(cap, channels) { this.cap = cap; this.n = 0; this.t = new Float64Array(cap); this.v = Array.from({ length: channels }, () => new Float32Array(cap)); }
+  push(t, ...vals) { const i = this.n % this.cap; this.t[i] = t; for (let c = 0; c < vals.length; c++) this.v[c][i] = vals[c]; this.n++; }
+  clear() { this.n = 0; }
+  last(ch) { return this.n ? this.v[ch][(this.n - 1) % this.cap] : null; }
+  // Buffer indexes of the points with t >= tMin, oldest first.
+  window(tMin) {
+    const out = [];
+    for (let k = this.n - 1; k >= Math.max(0, this.n - this.cap); k--) {
+      const i = k % this.cap;
+      if (this.t[i] < tMin - 2000) break;
+      if (this.t[i] >= tMin) out.push(i);
+    }
+    return out.reverse();
+  }
+}
+const R = { ecg: new Ring(RING_CAP.ecg, 1), acc: new Ring(RING_CAP.acc, 3), hr: new Ring(RING_CAP.hr, 1), rr: new Ring(RING_CAP.rr, 1) };
+
+// ---------------------------------------------------------------------------------------------
+// Per-stream numbers for the table
+// ---------------------------------------------------------------------------------------------
+const newStats = (nominalHz) => ({ nominalHz, packets: 0, samples: 0, lost: 0, resets: 0, ints: [], iMin: Infinity, iMax: 0, lastArr: null, lastNs: null,
+  lastCount: null, cMin: Infinity, cMax: 0, num: 0, denS: 0, denP: 0, fresh: null, last: null, flat: { run: 0, since: null, logged: false }, contactBits: null });
+const ST = { ecg: newStats(130), acc: newStats(200), hr: newStats(1) };
+const median = (v) => { if (!v.length) return null; const s = [...v].sort((a, b) => a - b); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+function noteInterval(st, arr) {
+  if (st.lastArr === null) return null;
+  const iv = arr - st.lastArr;
+  st.ints.push(iv); if (st.ints.length > 2000) st.ints.splice(0, 1000);
+  st.iMin = Math.min(st.iMin, iv); st.iMax = Math.max(st.iMax, iv);
+  return iv;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Connection state
+// ---------------------------------------------------------------------------------------------
+let mode = "idle";            // idle | strap | practice  (which source the current or last connection uses)
+let conn = "idle";            // idle | connecting | connected | dropped | reconnecting | gaveup | closing
+let ble = null, practice = null, battery = null, deviceName = null, closing = false;
+let running = { ecg: false, acc: false };     // streams the strap accepted and has not stopped
+const RC = { timer: null, attempts: 0, active: false, wasRunning: null, dropAt: null, busy: false, reason: "" };
+const sel = () => ({ ecg: $("ckEcg").checked, acc: $("ckAcc").checked, hr: $("ckHr").checked });
+const chosenRate = () => Number($("selRate").value), chosenRange = () => Number($("selRange").value);
+
+function setStatus(text, isErr) { const s = $("status"); s.textContent = text; s.className = "status " + (isErr ? "err" : "sub"); }
+function setConn(c) {
+  conn = c;
+  const idleish = c === "idle" || c === "dropped" || c === "gaveup";
+  $("btnConnect").disabled = !idleish; $("btnPractice").disabled = !idleish; $("btnDisc").disabled = c === "idle" || c === "closing";
+  $("btnReconnect").hidden = !(c === "dropped" || c === "gaveup"); $("btnReconnect").disabled = RC.busy;
+  $("simTag").className = "tag" + (mode === "practice" && c !== "idle" ? "" : " off");
+  $("practiceDetails").hidden = !(mode === "practice" && c !== "idle");
+  updateLinkText();
+}
+function connText() {
+  switch (conn) {
+    case "idle": return "not connected";
+    case "connecting": return "connecting";
+    case "connected": { const on = Object.entries(running).filter(([, v]) => v).map(([k]) => NAMES[k]); return on.length ? `connected, streaming ${on.join(" and ")}` : "connected, no streams running"; }
+    case "dropped": return "link dropped";
+    case "reconnecting": return `reconnecting (try ${RC.attempts})`;
+    case "gaveup": return "link lost, not retrying";
+    case "closing": return "disconnecting";
+  }
+  return conn;
+}
+function updateLinkText() {
+  const el = $("rcState");
+  const secs = RECONNECT_MS / 1000;
+  if (conn === "idle" || conn === "connecting") el.textContent = "No strap connected.";
+  else if (conn === "connected" || conn === "closing") el.textContent = "Link up.";
+  else if (conn === "dropped") el.textContent = $("ckAuto").checked ? `Link dropped. Reconnecting every ${secs} s.` : "Link dropped. Automatic reconnect is off; press Reconnect.";
+  else if (conn === "reconnecting") el.textContent = `Reconnecting, try ${RC.attempts} of ${MAX_ATTEMPTS}.`;
+  else if (conn === "gaveup") el.textContent = RC.reason;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Incoming data
+// ---------------------------------------------------------------------------------------------
+function sampleTimes(pk) {            // arrival time of the packet, stepped back by the strap's own sample spacing
+  const dts = pk.deviceTimesNs, n = dts.length, last = dts[n - 1], out = new Float64Array(n);
+  for (let i = 0; i < n; i++) out[i] = pk.arrivalMs - Number(last - dts[i]) / 1e6;
+  return out;
+}
+
+// Gap, reset and first-data checks shared by ECG and accelerometer. Returns true when this packet continues the previous one cleanly.
+function trackPacket(key, pk, n) {
+  const st = ST[key], ns = pk.frameDeviceTimeNs, arr = pk.arrivalMs;
+  const expectedMs = n / pk.nominalRateHz * 1000;
+  let clean = false, dtMs = null;
+  st.nominalHz = pk.nominalRateHz;
+  if (st.fresh) {
+    const f = st.fresh; st.fresh = null;
+    if (f.afterReturn && st.lastNs !== null) {
+      const dStrap = Number(ns - st.lastNs) / 1e9, dPc = (arr - st.lastArr) / 1000;
+      if (dStrap <= 0) { st.resets++; logEvent("clock reset", `The strap's ${NAMES[key]} timestamps went backward by ${(-dStrap).toFixed(2)} s after the reconnect (the strap restarted its clock).`, "bad"); }
+    }
+    let msg = `First ${NAMES[key]} data ${((arr - f.since) / 1000).toFixed(1)} s after ${f.afterReturn ? "the link dropped" : "the stream started"}: ${n} samples.`;
+    if (f.afterReturn && st.lastNs !== null && ns > st.lastNs) msg += ` The strap's clock moved ${(Number(ns - st.lastNs) / 1e9).toFixed(2)} s since its last packet before the drop; this computer's clock moved ${((arr - st.lastArr) / 1000).toFixed(2)} s.`;
+    logEvent(f.afterReturn ? "first data" : "stream", msg, f.afterReturn ? "good" : "");
+    st.lastArr = null;                                    // intervals and rates start over after a restart
+  } else if (st.lastNs !== null) {
+    dtMs = Number(ns - st.lastNs) / 1e6;
+    if (dtMs <= 0) { st.resets++; logEvent("clock reset", `The strap's ${NAMES[key]} timestamps went backward by ${(-dtMs / 1000).toFixed(3)} s (a backward jump, so the strap's clock reset).`, "bad"); }
+    else if (dtMs > GAP_FACTOR * expectedMs) {
+      const missing = Math.max(1, Math.round(dtMs / expectedMs) - 1);
+      st.lost += missing;
+      logEvent("gap", `Gap in ${NAMES[key]} strap timestamps: ${dtMs.toFixed(0)} ms between packets where about ${expectedMs.toFixed(0)} ms is expected, so about ${missing} packet${missing > 1 ? "s" : ""} missing.`, "warn");
+    } else clean = true;
+  }
+  const iv = noteInterval(st, arr);
+  if (clean && iv !== null) { st.num += n; st.denS += dtMs / 1000; st.denP += iv / 1000; }
+  st.packets++; st.samples += n; st.lastCount = n; st.cMin = Math.min(st.cMin, n); st.cMax = Math.max(st.cMax, n);
+  st.lastNs = ns; st.lastArr = arr;
+  return clean;
+}
+
+function onEcg(pk) {
+  const n = pk.deviceTimesNs.length; if (!n || !sel().ecg) return;
+  D.packets.push({ s: "ecg", ns: pk.frameDeviceTimeNs.toString(), n, arr: pk.arrivalMs, ecg: pk.samplesUv }); D.dirty = true;
+  trackPacket("ecg", pk, n);
+  const ts = sampleTimes(pk), v = pk.samplesUv;
+  let mn = Infinity, mx = -Infinity;
+  for (let i = 0; i < n; i++) { R.ecg.push(ts[i], v[i]); if (v[i] < mn) mn = v[i]; if (v[i] > mx) mx = v[i]; }
+  ST.ecg.last = `${v[n - 1]} µV`;
+  const f = ST.ecg.flat, flat = mx - mn < FLAT_P2P_UV;
+  if (flat) {
+    if (f.run === 0) f.since = pk.arrivalMs;
+    f.run++;
+    if (f.run >= FLAT_MIN_PACKETS && !f.logged) {
+      f.logged = true;
+      logEvent("ecg flat", `ECG has been flat for about ${((pk.arrivalMs - f.since) / 1000 + n / pk.nominalRateHz).toFixed(1)} s (peak-to-peak ${mx - mn} µV, under ${FLAT_P2P_UV} µV${mx === 0 && mn === 0 ? ", every sample zero" : ""}). The strap is probably off the body.`, "warn");
+    }
+  } else {
+    if (f.logged) logEvent("ecg flat", `ECG signal is back (peak-to-peak ${mx - mn} µV) after about ${((pk.arrivalMs - f.since) / 1000).toFixed(1)} s flat.`, "good");
+    f.run = 0; f.logged = false;
+  }
+}
+
+function onAcc(pk) {
+  const n = pk.deviceTimesNs.length; if (!n || !sel().acc) return;
+  D.packets.push({ s: "acc", ns: pk.frameDeviceTimeNs.toString(), n, arr: pk.arrivalMs, x: pk.xMg, y: pk.yMg, z: pk.zMg }); D.dirty = true;
+  trackPacket("acc", pk, n);
+  const ts = sampleTimes(pk);
+  for (let i = 0; i < n; i++) R.acc.push(ts[i], pk.xMg[i], pk.yMg[i], pk.zMg[i]);
+  ST.acc.last = `x ${pk.xMg[n - 1]}, y ${pk.yMg[n - 1]}, z ${pk.zMg[n - 1]} mg`;
+  // the 3D view and breathing filter
+  const times = clock.convert(pk.arrivalMs, pk.deviceTimesNs);
+  dstats.add(pk.arrivalMs, n, Number(pk.deviceTimesNs[n - 1] - clock.firstNs) / 1e6);
+  for (let i = 0; i < n; i++) processSample(times[i], pk.xMg[i], pk.yMg[i], pk.zMg[i]);
+  updateAutoDelay();
+  if (tap.running) tapFeedAcc(ts, pk);
+}
+
+function onHeartRate(h) {
+  if (!sel().hr) return;
+  const st = ST.hr, arr = h.arrivalMs;
+  D.hr.push({ arr, flags: h.flags, sup: h.contactSupported, det: h.contactDetected, bpm: h.heartRateBpm, rr: h.rrIntervalsMs }); D.dirty = true;
+  if (st.fresh) { const f = st.fresh; st.fresh = null; st.lastArr = null; logEvent(f.afterReturn ? "first data" : "stream", `First heart rate notification ${((arr - f.since) / 1000).toFixed(1)} s after ${f.afterReturn ? "the link dropped" : "the streams were started"}.`, f.afterReturn ? "good" : ""); }
+  const iv = noteInterval(st, arr);
+  if (iv !== null) { st.num += 1; st.denP += iv / 1000; }
+  st.packets++; st.lastCount = h.rrIntervalsMs.length; st.cMin = Math.min(st.cMin, st.lastCount); st.cMax = Math.max(st.cMax, st.lastCount); st.lastArr = arr;
+  const bits = ((h.flags >> 1) & 3);                       // bit 1 contact detected, bit 2 contact supported
+  if (st.contactBits !== bits) {
+    const was = st.contactBits;
+    const word = (b) => (b & 2) ? (b & 1 ? "supported, detected" : "supported, not detected") : (b & 1 ? "not supported, detected bit set" : "not supported");
+    logEvent("contact", was === null ? `First heart rate notification: contact bits ${word(bits)} (flags byte 0x${h.flags.toString(16).padStart(2, "0")}).`
+      : `Heart rate contact bits changed from "${word(was)}" to "${word(bits)}" (flags byte 0x${h.flags.toString(16).padStart(2, "0")}).`, was === null ? "" : "warn");
+    st.contactBits = bits;
+  }
+  R.hr.push(arr, h.heartRateBpm);
+  let t = arr; const rrs = h.rrIntervalsMs, pts = [];
+  for (let j = rrs.length - 1; j >= 0; j--) { pts.push([t, rrs[j]]); t -= rrs[j]; }
+  for (const [pt, v] of pts.reverse()) R.rr.push(pt, v);
+  st.last = `${h.heartRateBpm} beats/min` + (rrs.length ? `, RR ${rrs.join(" ")} ms` : "") + (h.contactSupported ? (h.contactDetected ? ", contact yes" : ", contact no") : "");
+}
+
+function onStreamStopped({ measurementTypes }) {
+  const names = measurementTypes.map((t) => (t === 0 ? "ECG" : t === 2 ? "accelerometer" : `type ${t}`));
+  for (const t of measurementTypes) { if (t === 0) running.ecg = false; if (t === 2) running.acc = false; }
+  logEvent("stream", `The strap ended ${names.join(" and ")} streaming by itself.`, "warn");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Starting and stopping streams
+// ---------------------------------------------------------------------------------------------
+function armFresh(key, afterReturn) { ST[key].fresh = { since: afterReturn && RC.dropAt !== null ? RC.dropAt : performance.now(), afterReturn }; }
+
+async function startOne(key, afterReturn) {
+  const rate = chosenRate(), range = chosenRange();
+  const args = key === "ecg" ? { ecg: true, acc: null } : { ecg: false, acc: { sampleRateHz: rate, rangeG: range } };
+  armFresh(key, afterReturn);
+  if (key === "acc") resetPipeline(rate);
+  try {
+    await ble.startStreams(args);
+    running[key] = true;
+    logEvent("stream", key === "ecg" ? "ECG start: the strap accepted it (130 samples/s)." : `Accelerometer start: the strap accepted it (${rate} samples/s, range ±${range} g).`, "good");
+  } catch (e) {
+    running[key] = false; ST[key].fresh = null;
+    logEvent("stream", `${key === "ecg" ? "ECG" : "Accelerometer"} start failed: ${e?.message ?? e}`, "bad");
+  }
+  setConn(conn);
+}
+
+async function startStreamsFor(wanted, afterReturn) {
+  if (wanted.hr) armFresh("hr", afterReturn);
+  if (wanted.ecg) await startOne("ecg", afterReturn);
+  if (wanted.acc) await startOne("acc", afterReturn);
+  const on = Object.entries(running).filter(([, v]) => v).map(([k]) => NAMES[k]);
+  setStatus(on.length ? `Streaming: ${on.join(", ")}.` : "Connected. No ECG or accelerometer stream is running.", false);
+}
+
+async function stopRunning(why) {
+  const types = ble.streamingTypes.map((t) => (t === 0 ? "ECG" : t === 2 ? "accelerometer" : `type ${t}`));
+  if (!types.length) return;
+  const errs = D.events.filter((e) => e.level === "bad").length;
+  await ble.stopStreams();
+  running = { ecg: false, acc: false };
+  const failed = D.events.filter((e) => e.level === "bad").length > errs;
+  logEvent("stream", `Stop sent for ${types.join(" and ")} (${why})${failed ? ", but at least one stop failed (see the error above)" : ": the strap accepted it"}.`, failed ? "bad" : "");
+}
+
+async function restartForSettings() {
+  if (!ble || conn !== "connected") return;
+  try { await stopRunning("settings changed"); await startStreamsFor(sel(), false); } catch (e) { logEvent("error", e?.message ?? String(e), "bad"); }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Connect, disconnect, drop, reconnect
+// ---------------------------------------------------------------------------------------------
+function resetTracking() {
+  for (const k of ["ecg", "acc", "hr"]) { const nom = ST[k].nominalHz; ST[k] = newStats(nom); }
+}
+function makeBle(bt) {
+  ble = new PolarH10Ble({
+    onHeartRate, onEcg, onAcc,
+    onBattery: (b) => { if (b.percent !== battery) logEvent("info", `Battery level ${b.percent} %.`); battery = b.percent; },
+    onStreamStopped, onDisconnect: onDrop,
+    onError: (e) => logEvent("error", e?.message ?? String(e), "bad"),
+  }, { bluetooth: bt });
+}
+async function doConnect(isPractice) {
+  if (!(conn === "idle" || conn === "dropped" || conn === "gaveup")) return;
+  cancelReconnect();
+  const bt = isPractice ? null : globalThis.navigator?.bluetooth;
+  if (!isPractice && !bt) { setStatus("This page cannot see Bluetooth. Use Chrome on a page served over https (or localhost).", true); logEvent("error", "Connect failed: this browser exposes no Web Bluetooth here.", "bad"); return; }
+  mode = isPractice ? "practice" : "strap";
+  resetTracking(); running = { ecg: false, acc: false };
+  let btUse = bt;
+  if (isPractice) { const mock = new MockPolarDevice({ heartRateBpm: 66 }); practice = { mock }; btUse = new MockBluetooth(mock); }
+  makeBle(btUse);
+  setConn("connecting");
+  setStatus(isPractice ? "Connecting to the practice strap." : "Choose your Polar H10 in the Bluetooth window.", false);
+  logEvent("connect", isPractice ? "Connect pressed (practice strap)." : "Connect pressed: the Bluetooth chooser opened.");
+  let info;
+  try { info = await ble.connect(); }
+  catch (e) {
+    mode = "idle"; setConn("idle");
+    if (e?.name === "NotFoundError") { setStatus("No strap chosen.", false); logEvent("connect", "The chooser was closed without choosing a strap."); }
+    else { setStatus(e?.message ?? String(e), true); logEvent("connect", `Connect failed: ${e?.message ?? e}`, "bad"); }
+    return;
+  }
+  deviceName = info.deviceName ?? "the strap";
+  $("fName").textContent = deviceName + (isPractice ? " (practice)" : "");
+  D.sessions.push({ mode, device: deviceName, deviceId: info.deviceId, startedAtPerfMs: performance.now(), startedAtIso: wallIso(performance.now()) });
+  logEvent("connect", `Connected to ${deviceName}; battery ${info.batteryPercent ?? "unknown"} %; the strap offers ${info.measurementTypes.map((t) => (t === 0 ? "ECG" : t === 2 ? "accelerometer" : `type ${t}`)).join(", ")}.`, "good");
+  if (isPractice) practice.mock.start(100);
+  setConn("connected");
+  await startStreamsFor(sel(), false);
+  setConn(conn);
+}
+
+async function doDisconnect() {
+  if (conn === "idle" || conn === "closing") return;
+  cancelReconnect();
+  const live = ble && ble.connected;
+  closing = true; setConn("closing");
+  try {
+    if (live) await stopRunning("disconnect requested");
+    if (ble) await ble.disconnect();
+  } catch (e) { logEvent("error", e?.message ?? String(e), "bad"); }
+  practice?.mock?.stop();
+  running = { ecg: false, acc: false };
+  logEvent("connect", "Disconnected (requested).");
+  closing = false; mode = "idle"; setConn("idle");
+  if (buf.n) view.frozenT = buf.t[(buf.n - 1) % CAP];
+  setStatus("Disconnected. The traces and log stay on screen; Save session data keeps them.", false);
+}
+
+function onDrop({ arrivalMs, requested }) {
+  if (closing || conn === "reconnecting" || conn === "connecting" || conn === "idle") return;
+  if (requested) return;
+  RC.wasRunning = { ...running, hr: sel().hr }; RC.dropAt = arrivalMs; RC.attempts = 0;
+  running = { ecg: false, acc: false };
+  ST.ecg.flat = { run: 0, since: null, logged: false };
+  logEvent("disconnect", "The link dropped: the strap disconnected without being asked.", "bad");
+  setConn("dropped");
+  setStatus("The link dropped.", true);
+  if ($("ckAuto").checked) { RC.active = true; scheduleAttempt(RECONNECT_MS); }
+}
+function cancelReconnect() { RC.active = false; if (RC.timer) { clearTimeout(RC.timer); RC.timer = null; } }
+function scheduleAttempt(ms) { if (RC.timer) clearTimeout(RC.timer); RC.timer = setTimeout(reconnectAttempt, ms); }
+
+async function reconnectAttempt() {
+  RC.timer = null;
+  if (!RC.active || RC.busy || !ble) return;
+  RC.busy = true; RC.attempts++;
+  setConn("reconnecting");
+  logEvent("reconnect", `Reconnect try ${RC.attempts}: asking Chrome to connect to the same strap (no chooser).`);
+  try {
+    await ble.reconnect();
+  } catch (e) {
+    RC.busy = false;
+    if (!RC.active) { try { await ble.disconnect(); } catch {} return; }
+    logEvent("reconnect", `Reconnect try ${RC.attempts} failed: ${e?.name ?? "error"}: ${e?.message ?? e}`, "warn");
+    if (FATAL_RECONNECT_ERRORS.includes(e?.name)) giveUp(`Chrome cannot reconnect to the strap without the chooser (${e.name}). Press Reconnect to try again, or Connect to choose the strap again.`);
+    else if (RC.attempts >= MAX_ATTEMPTS) giveUp(`No reconnection after ${RC.attempts} tries. Check that the strap is on and close to the computer, then press Reconnect, or press Connect to choose it again.`);
+    else { setConn("dropped"); scheduleAttempt(RECONNECT_MS); }
+    return;
+  }
+  RC.busy = false;
+  if (!RC.active) { try { await ble.disconnect(); } catch {} return; }
+  logEvent("reconnect", `Reconnected to the same strap on try ${RC.attempts}, ${((performance.now() - RC.dropAt) / 1000).toFixed(1)} s after the drop. Restarting the streams that were on.`, "good");
+  RC.active = false;
+  setConn("connected");
+  await startStreamsFor(RC.wasRunning ?? sel(), true);
+  setConn("connected");
+}
+function giveUp(text) {
+  cancelReconnect(); RC.reason = text; setConn("gaveup");
+  setStatus("Not reconnected.", true);
+  logEvent("reconnect", text, "bad");
+}
+function manualReconnect() {
+  if (RC.busy || !ble) return;
+  RC.active = true; RC.attempts = 0; RC.reason = "";
+  logEvent("reconnect", "Reconnect button pressed.");
+  reconnectAttempt();
+}
+
+// ---------------------------------------------------------------------------------------------
+// Buttons and settings
+// ---------------------------------------------------------------------------------------------
+$("btnConnect").onclick = () => doConnect(false);
+$("btnPractice").onclick = () => doConnect(true);
+$("btnDisc").onclick = doDisconnect;
+$("btnReconnect").onclick = manualReconnect;
+$("ckAuto").onchange = () => { if (!$("ckAuto").checked) { if (conn === "dropped") cancelReconnect(); } else if (conn === "dropped" && ble) { RC.active = true; scheduleAttempt(RECONNECT_MS); } updateLinkText(); };
+for (const id of ["ckEcg", "ckAcc", "selRate", "selRange"]) $(id).onchange = restartForSettings;
+$("ckHr").onchange = () => { if ($("ckHr").checked && conn === "connected") armFresh("hr", false); };
+$("pxDrop").onclick = () => { practice.mock.connectFailures = 2; practice.mock.simulateDisconnect(); };
+$("pxDropReset").onclick = () => { practice.mock.connectFailures = 2; practice.mock.simulateDisconnect(); practice.mock.resetDeviceClock(); };
+$("pxOff").onclick = () => practice.mock.setContact(false);
+$("pxOn").onclick = () => practice.mock.setContact(true);
+$("pxGap").onclick = () => practice.mock.dropFrames(3, PMD_TYPE_ACC);
+$("pxTap").onclick = () => practice.mock.tap();
+window.addEventListener("beforeunload", (e) => { if (D.dirty && D.packets.length) { e.preventDefault(); e.returnValue = ""; } });
+let clearArmed = null;
+$("btnClear").onclick = () => {
+  if (!clearArmed) { $("btnClear").textContent = "Click again to clear (unsaved data is lost)"; clearArmed = setTimeout(() => { clearArmed = null; $("btnClear").textContent = "Clear session data"; }, 4000); return; }
+  clearTimeout(clearArmed); clearArmed = null; $("btnClear").textContent = "Clear session data";
+  D.packets = []; D.hr = []; D.events = []; D.sessions = D.sessions.slice(-1); D.t0 = performance.now(); D.dirty = false;
+  for (const r of Object.values(R)) r.clear();
+  resetTracking(); tapClear(); renderLog(); logEvent("info", "Session data cleared.");
+};
+
+// ---------------------------------------------------------------------------------------------
+// Table and facts
+// ---------------------------------------------------------------------------------------------
+function fixed(v, d) { return v === null || v === undefined || !Number.isFinite(v) ? "–" : v.toFixed(d); }
+function updateGlance() {
+  const s = sel();
+  for (const key of ["ecg", "acc", "hr"]) {
+    const row = $("r-" + key), st = ST[key], cell = (c) => row.querySelector(`[data-c="${c}"]`);
+    const on = s[key] || st.packets > 0;
+    if (!on) { for (const c of ["pk", "per", "int", "rs", "rp", "lost", "last"]) cell(c).textContent = "off"; continue; }
+    cell("pk").textContent = st.packets;
+    if (key === "hr") cell("per").textContent = st.lastCount === null ? "–" : `1 reading (${st.cMin === st.cMax ? st.cMax : st.cMin + " to " + st.cMax} RR values)`;
+    else cell("per").textContent = st.lastCount === null ? "–" : (st.cMin === st.cMax ? String(st.cMax) : `${st.lastCount} (range ${st.cMin} to ${st.cMax})`);
+    const med = median(st.ints);
+    cell("int").textContent = med === null ? "–" : `${med.toFixed(0)} (range ${st.iMin.toFixed(0)} to ${st.iMax.toFixed(0)})`;
+    cell("rs").textContent = key === "hr" ? "no strap timestamp" : (st.denS > 0 ? `${(st.num / st.denS).toFixed(2)} (nominal ${st.nominalHz})` : "–");
+    cell("rp").textContent = st.denP > 0 ? `${(st.num / st.denP).toFixed(2)}${key === "hr" ? " notifications/s" : ""}` : "–";
+    cell("lost").textContent = key === "hr" ? "cannot be counted" : String(st.lost) + (st.resets ? ` (+${st.resets} clock reset${st.resets > 1 ? "s" : ""})` : "");
+    cell("last").textContent = st.last ?? "–";
+  }
+  $("fConn").textContent = connText();
+  $("fBatt").textContent = battery === null ? "–" : battery + " %";
+  if (conn === "idle") $("fName").textContent = deviceName ? deviceName + " (disconnected)" : "–";
+  $("btnSave").disabled = !(D.packets.length || D.hr.length || D.events.length);
+  $("btnClear").disabled = $("btnSave").disabled;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Drawing the traces
+// ---------------------------------------------------------------------------------------------
+const scales = {};
+function drawChart(cv, panels, winS, T) {
+  const { ctx, w, h } = fit(cv);
+  ctx.clearRect(0, 0, w, h);
+  const L = 52, Rm = 96, gapY = 6, bottom = 14, x0 = L, x1 = w - Rm;
+  const ph = (h - bottom - gapY * (panels.length - 1)) / panels.length;
+  panels.forEach((p, k) => {
+    const y0 = k * (ph + gapY) + 1, y1 = y0 + ph - 2;
+    ctx.strokeStyle = C.line; ctx.lineWidth = 1; ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+    const tMin = T - winS * 1000;
+    ctx.strokeStyle = C.grid;
+    for (let s = 0; s <= winS; s += winS / 4) { const x = x1 - (x1 - x0) * s / winS; ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke(); }
+    // gather
+    let lo = Infinity, hi = -Infinity;
+    const data = p.series.map((sr) => {
+      const idx = sr.ring.window(tMin), vals = sr.ring.v[sr.ch], map = sr.map ?? ((v) => v);
+      for (const i of idx) { const v = map(vals[i]); if (v < lo) lo = v; if (v > hi) hi = v; }
+      return idx;
+    });
+    ctx.font = FONT(11); ctx.textBaseline = "middle";
+    if (!Number.isFinite(lo)) {
+      ctx.fillStyle = C.muted; ctx.textAlign = "center"; ctx.fillText(p.empty ?? "No data yet", (x0 + x1) / 2, (y0 + y1) / 2);
+    } else {
+      const span = Math.max(p.minSpan, hi - lo), mid = (hi + lo) / 2;
+      const tl = mid - span * 0.58, th = mid + span * 0.58;
+      const key = p.id, sc = scales[key] ?? (scales[key] = { lo: tl, hi: th });
+      sc.lo = tl < sc.lo ? tl : sc.lo + (tl - sc.lo) * 0.1; sc.hi = th > sc.hi ? th : sc.hi + (th - sc.hi) * 0.1;
+      const ymap = (v) => y1 - 3 - (v - sc.lo) / (sc.hi - sc.lo) * (y1 - y0 - 6);
+      ctx.save(); ctx.beginPath(); ctx.rect(x0, y0, x1 - x0, y1 - y0); ctx.clip();
+      p.series.forEach((sr, si) => {
+        const idx = data[si], vals = sr.ring.v[sr.ch], map = sr.map ?? ((v) => v), col = C[sr.color];
+        const stride = Math.max(1, Math.floor(idx.length / ((x1 - x0) * 2)));
+        const xs = (t) => x1 - (T - t) / (winS * 1000) * (x1 - x0);
+        if (sr.kind !== "dots") {
+          ctx.strokeStyle = col; ctx.lineWidth = sr.lw ?? 1.3; ctx.lineJoin = "round"; ctx.beginPath();
+          let prevT = null;
+          for (let q = 0; q < idx.length; q += stride) {
+            const i = idx[q], t = sr.ring.t[i], x = xs(t), y = ymap(map(vals[i]));
+            if (prevT === null || t - prevT > sr.gapMs) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            prevT = t;
+          }
+          ctx.stroke();
+        }
+        if (sr.kind === "dots" || sr.kind === "both") {
+          ctx.fillStyle = col;
+          for (const i of idx) { ctx.beginPath(); ctx.arc(xs(sr.ring.t[i]), ymap(map(vals[i])), 2.6, 0, 7); ctx.fill(); }
+        }
+      });
+      ctx.restore();
+      ctx.fillStyle = C.muted; ctx.textAlign = "right";
+      ctx.fillText(sc.hi.toFixed(p.dec ?? 0), x0 - 4, y0 + 8); ctx.fillText(sc.lo.toFixed(p.dec ?? 0), x0 - 4, y1 - 8);
+    }
+    // latest values, with units
+    ctx.textAlign = "left";
+    p.series.forEach((sr, si) => {
+      const v = sr.ring.last(sr.ch); if (v === null) return;
+      const map = sr.map ?? ((v2) => v2);
+      ctx.fillStyle = C[sr.color]; ctx.font = FONT(12, true);
+      const ty = p.series.length > 1 ? y0 + 12 + si * 16 : (y0 + y1) / 2;
+      ctx.fillText(`${sr.name ? sr.name + " " : ""}${map(v).toFixed(p.dec ?? 0)}`, x1 + 6, ty - (p.series.length > 1 ? 0 : 6));
+      if (p.series.length === 1 || si === p.series.length - 1) { ctx.fillStyle = C.muted; ctx.font = FONT(10); ctx.fillText(p.unit, x1 + 6, p.series.length > 1 ? y0 + 12 + p.series.length * 16 : (y0 + y1) / 2 + 8); }
+    });
+  });
+  ctx.fillStyle = C.muted; ctx.font = FONT(10); ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
+  for (let s = 0; s <= winS; s += winS / 4) { const x = x1 - (x1 - x0) * s / winS; ctx.fillText(s === 0 ? "now" : "-" + (Number.isInteger(s) ? s : s.toFixed(1)) + " s", Math.min(x1 - 8, Math.max(x0 + 10, x)), h - 2); }
+}
+function drawTraces(now) {
+  const win = Number($("selWin").value), over = $("selAccMode").value === "over";
+  drawChart($("cEcg"), [{ id: "ecg", unit: "µV", minSpan: 120, series: [{ ring: R.ecg, ch: 0, color: "ecg", gapMs: 700 }], empty: sel().ecg ? "No ECG data yet" : "ECG is off" }], win, now);
+  const ax = (name, ch, color) => ({ ring: R.acc, ch, color, name, gapMs: 700, lw: 1.1 });
+  const accPanels = over ? [{ id: "acc-o", unit: "milli-g", minSpan: 40, series: [ax("x", 0, "x"), ax("y", 1, "y"), ax("z", 2, "z")], empty: sel().acc ? "No accelerometer data yet" : "Accelerometer is off" }]
+    : [0, 1, 2].map((c) => ({ id: "acc-" + c, unit: "milli-g (" + "xyz"[c] + ")", minSpan: 20, series: [ax("", c, "xyz"[c])], empty: sel().acc ? "No accelerometer data yet" : "Accelerometer is off" }));
+  drawChart($("cAcc"), accPanels, win, now);
+  drawChart($("cHr"), [{ id: "hr", unit: "beats/min", minSpan: 10, series: [{ ring: R.hr, ch: 0, color: "hr", gapMs: 5000, lw: 1.6 }, { ring: R.rr, ch: 0, color: "rr", kind: "dots", map: (v) => 60000 / v }], empty: "No heart rate data yet" }], HR_WINDOW_S, now);
+  drawChart($("cRr"), [{ id: "rr", unit: "ms", minSpan: 100, series: [{ ring: R.rr, ch: 0, color: "rr", kind: "both", gapMs: 5000, lw: 1 }], empty: "No RR intervals yet" }], HR_WINDOW_S, now);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Frame loop and the readouts that belong to the 3D view
+// ---------------------------------------------------------------------------------------------
+let lastDraw = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (now - lastDraw < 50) return;
+  lastDraw = now;
+  drawTraces(now);
+  if ($("accDetails").open) {
+    let T = now - delayMs();
+    if (view.frozenT !== null) T = Math.min(T, view.frozenT);
+    let cur = null;
+    if (buf.n > 0) {
+      const idx = findIndex(T);
+      if (idx >= 0) {
+        const tA = buf.t[idx % CAP], tB = idx + 1 < buf.n ? buf.t[(idx + 1) % CAP] : null;
+        const frac = tB === null ? 0 : (T - tA) / (tB - tA);
+        cur = { idx };
+        for (const f of FIELDS) cur[f] = valueAt(idx, frac, f);
+        if (tB === null && running.acc) {
+          const gap = T - tA;
+          if (gap > 2.5 * 1000 / pipe.fs + 5 && view.autoSet) { if (!view.under) { view.under = true; dstats.late++; if (AS.auto) { view.extraMs = Math.min(400, view.extraMs + 20); updateAutoDelay(); } } }
+        } else view.under = false;
+      }
+    }
+    draw3d(cur, T); drawBreath(cur, T);
+    $("roDelayInfo").textContent = `In use: ${delayMs()} ms${AS.auto ? " (automatic)" : ""}; samples that arrived too late: ${dstats.late}.`;
+    if (AS.auto) $("rgDelay").value = view.autoDelay;
+    $("vDelay").textContent = delayMs() + " ms";
+  }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Tap test
+// ---------------------------------------------------------------------------------------------
+// Finds taps in a feature signal (t in ms, f >= 0). A tap starts at the first sample above a threshold set from the
+// signal's own noise: median + noiseK robust standard deviations, never below minAbs. After a tap, refractoryMs pass before the next.
+function detectTaps(t, f, { minAbs, noiseK = TAP.noiseK, refractoryMs = TAP.refractoryMs, peakWindowMs = 80 }) {
+  const n = Math.min(t.length, f.length);
+  if (n < 20) return [];
+  const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => t[a] - t[b]);
+  const ft = order.map((i) => f[i]), tt = order.map((i) => t[i]);
+  const med = median(ft), mad = median(ft.map((v) => Math.abs(v - med)));
+  const thr = Math.max(minAbs, med + noiseK * 1.4826 * mad);
+  const out = []; let lastT = -Infinity;
+  for (let i = 0; i < n; i++) {
+    if (ft[i] >= thr && tt[i] - lastT >= refractoryMs) {
+      let peak = ft[i];
+      for (let j = i; j < n && tt[j] - tt[i] <= peakWindowMs; j++) peak = Math.max(peak, ft[j]);
+      out.push({ t: tt[i], strength: peak, threshold: thr });
+      lastT = tt[i];
+    }
+  }
+  return out;
+}
+// Pairs each accelerometer tap with the nearest unused microphone tap within maxMs. diffMs = accelerometer time minus microphone time.
+function matchTaps(acc, mic, maxMs = TAP.matchMs) {
+  const used = new Set(), pairs = [];
+  for (const a of acc) {
+    let best = -1, bd = Infinity;
+    mic.forEach((m, j) => { const d = Math.abs(a.t - m.t); if (!used.has(j) && d < bd) { bd = d; best = j; } });
+    if (best >= 0 && bd <= maxMs) { used.add(best); pairs.push({ accT: a.t, micT: mic[best].t, diffMs: a.t - mic[best].t }); }
+  }
+  pairs.sort((p, q) => p.micT - q.micT);
+  return { pairs, accOnly: acc.length - pairs.length, micOnly: mic.length - pairs.length, medianMs: median(pairs.map((p) => p.diffMs)) };
+}
+
+const WORKLET_SRC = `class TapPeak extends AudioWorkletProcessor {
+  constructor() { super(); this.f = []; this.p = []; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    let peak = 0;
+    if (ch && ch.length) { let m = 0; for (let i = 0; i < ch.length; i++) m += ch[i]; m /= ch.length; for (let i = 0; i < ch.length; i++) { const a = Math.abs(ch[i] - m); if (a > peak) peak = a; } }
+    this.f.push(currentFrame); this.p.push(peak);
+    if (this.f.length >= 4) { this.port.postMessage({ f: this.f, p: this.p }); this.f = []; this.p = []; }
+    return true;
+  }
+}
+registerProcessor("tap-peak", TapPeak);`;
+
+const tap = { running: false, ctx: null, stream: null, nodes: [], timer: null, offsets: [], offsetMs: null, offsetSource: null, offsetSpread: null, inputLatencyMs: null,
+  mic: { t: [], f: [] }, acc: { t: [], f: [] }, prevAcc: null, level: 0, det: { mic: [], acc: [] }, match: { pairs: [], accOnly: 0, micOnly: 0, medianMs: null }, startedAt: null, sampleRate: null, engine: null };
+
+function tapClear() {
+  tap.mic = { t: [], f: [] }; tap.acc = { t: [], f: [] }; tap.prevAcc = null; tap.det = { mic: [], acc: [] };
+  tap.match = { pairs: [], accOnly: 0, micOnly: 0, medianMs: null }; renderTaps();
+}
+function tapSampleOffset() {
+  const ctx = tap.ctx; if (!ctx) return;
+  let off = null, src = null;
+  try { const ts = ctx.getOutputTimestamp(); if (ts.performanceTime > 0 && ts.contextTime > 0) { off = ts.performanceTime - ts.contextTime * 1000; src = "getOutputTimestamp"; } } catch {}
+  if (off === null) { off = performance.now() - ctx.currentTime * 1000; src = "currentTime"; }
+  tap.offsets.push(off); if (tap.offsets.length > 40) tap.offsets.shift();
+  tap.offsetMs = median(tap.offsets); tap.offsetSource = src;
+  tap.offsetSpread = Math.max(...tap.offsets) - Math.min(...tap.offsets);
+}
+function onMicBlocks({ f, p }) {
+  if (!tap.running) return;
+  for (let i = 0; i < f.length; i++) {
+    const t = tap.offsetMs + f[i] / tap.sampleRate * 1000 - (tap.inputLatencyMs ?? 0);
+    tap.mic.t.push(t); tap.mic.f.push(p[i]);
+    if (p[i] > tap.level) tap.level = p[i];
+  }
+  if (tap.mic.t.length > TAP.maxRecordS * tap.sampleRate / 128) tapStop();
+}
+function tapFeedAcc(ts, pk) {
+  const n = ts.length;
+  for (let i = 0; i < n; i++) {
+    const x = pk.xMg[i], y = pk.yMg[i], z = pk.zMg[i], p = tap.prevAcc;
+    if (p) { tap.acc.t.push(ts[i]); tap.acc.f.push(Math.hypot(x - p[0], y - p[1], z - p[2])); }
+    tap.prevAcc = [x, y, z];
+  }
+}
+async function tapStart() {
+  if (tap.running) return;
+  const say = (m) => { $("tapStatus").textContent = m; };
+  if (!navigator.mediaDevices?.getUserMedia) { say("This browser cannot open the microphone here (it needs https or localhost)."); return; }
+  if (!sel().acc || !running.acc) say("Turn the accelerometer on and connect first for a full test. Listening to the microphone anyway.");
+  try {
+    tap.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  } catch (e) { say(`The microphone was not opened: ${e?.name ?? "error"}: ${e?.message ?? e}`); logEvent("tap", `Microphone not opened: ${e?.name ?? "error"}.`, "warn"); return; }
+  try {
+    const ctx = tap.ctx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+    await ctx.resume();
+    tap.sampleRate = ctx.sampleRate;
+    let useWorklet = !!ctx.audioWorklet;
+    if (useWorklet) {
+      const url = URL.createObjectURL(new Blob([WORKLET_SRC], { type: "application/javascript" }));
+      try { await ctx.audioWorklet.addModule(url); } catch { useWorklet = false; }      // a page opened from a file may not load worklets
+      URL.revokeObjectURL(url);
+    }
+    tap.engine = useWorklet ? "AudioWorklet" : "ScriptProcessor (the AudioWorklet could not load here)";
+    const track = tap.stream.getAudioTracks()[0], lat = track?.getSettings?.().latency;
+    tap.inputLatencyMs = typeof lat === "number" && lat > 0 ? lat * 1000 : null;
+    tap.offsets = []; tapSampleOffset();
+    const src = ctx.createMediaStreamSource(tap.stream), silent = ctx.createGain();
+    silent.gain.value = 0;
+    let node;
+    if (useWorklet) {
+      node = new AudioWorkletNode(ctx, "tap-peak", { numberOfInputs: 1, numberOfOutputs: 1, channelCount: 1 });
+      node.port.onmessage = (e) => onMicBlocks(e.data);
+    } else {
+      node = ctx.createScriptProcessor(1024, 1, 1);
+      node.onaudioprocess = (e) => {
+        const ch = e.inputBuffer.getChannelData(0), f0 = Math.round(e.playbackTime * ctx.sampleRate), f = [], p = [];
+        for (let j = 0; j < ch.length; j += 128) {
+          let m = 0, peak = 0; const end = Math.min(ch.length, j + 128);
+          for (let i = j; i < end; i++) m += ch[i];
+          m /= end - j;
+          for (let i = j; i < end; i++) peak = Math.max(peak, Math.abs(ch[i] - m));
+          f.push(f0 + j); p.push(peak);
+        }
+        onMicBlocks({ f, p });
+      };
+    }
+    src.connect(node); node.connect(silent); silent.connect(ctx.destination);
+    tap.nodes = [src, node, silent];
+    tap.timer = setInterval(() => { tapSampleOffset(); tapAnalyse(); }, 250);
+    tap.running = true; tap.startedAt = performance.now();
+    tapClear();
+    $("btnTapStart").disabled = true; $("btnTapStop").disabled = false;
+    say("Listening. Tap the strap firmly next to the microphone, about once a second.");
+    logEvent("tap", `Tap test started: microphone open at ${tap.sampleRate} Hz via ${tap.engine}, clock mapping by ${tap.offsetSource}${tap.inputLatencyMs !== null ? `, input latency ${tap.inputLatencyMs.toFixed(1)} ms subtracted` : ", no input latency reported"}.`);
+    renderTapMethod();
+  } catch (e) {
+    say(`The tap test could not start: ${e?.message ?? e}`); logEvent("tap", `Tap test could not start: ${e?.message ?? e}`, "warn");
+    tapTeardown();
+  }
+}
+function tapTeardown() {
+  clearInterval(tap.timer); tap.timer = null;
+  try { tap.stream?.getTracks().forEach((t) => t.stop()); } catch {}
+  try { tap.ctx?.close(); } catch {}
+  tap.stream = null; tap.ctx = null; tap.nodes = [];
+}
+function tapStop() {
+  if (!tap.running) return;
+  tap.running = false; tapAnalyse(); tapTeardown();
+  $("btnTapStart").disabled = false; $("btnTapStop").disabled = true;
+  const m = tap.match;
+  $("tapStatus").textContent = "Stopped.";
+  logEvent("tap", `Tap test stopped: microphone heard ${tap.det.mic.length} tap(s), accelerometer felt ${tap.det.acc.length}, ${m.pairs.length} matched${m.medianMs !== null ? `, median accelerometer minus microphone ${m.medianMs.toFixed(1)} ms` : ""}.`);
+}
+function tapAnalyse() {
+  tap.det.mic = detectTaps(tap.mic.t, tap.mic.f, { minAbs: TAP.micMinPeak });
+  tap.det.acc = detectTaps(tap.acc.t, tap.acc.f, { minAbs: TAP.accMinJerkMg });
+  tap.match = matchTaps(tap.det.acc, tap.det.mic);
+  renderTaps();
+}
+function renderTaps() {
+  const tb = $("tapTable").querySelector("tbody"), m = tap.match;
+  tb.innerHTML = m.pairs.map((p, i) => `<tr><td>${i + 1}</td><td>${p.micT.toFixed(1)}</td><td>${p.accT.toFixed(1)}</td><td>${p.diffMs >= 0 ? "+" : ""}${p.diffMs.toFixed(1)}</td></tr>`).join("");
+  const extra = (m.accOnly || m.micOnly) ? ` Not matched: ${m.accOnly} accelerometer-only, ${m.micOnly} microphone-only.` : "";
+  $("tapMedian").textContent = m.pairs.length ? `Median over ${m.pairs.length} tap${m.pairs.length > 1 ? "s" : ""}: the accelerometer reaches this page ${Math.abs(m.medianMs).toFixed(1)} ms ${m.medianMs >= 0 ? "after" : "before"} the microphone hears the tap.${extra}` : `No taps matched yet.${extra} Heard by microphone: ${tap.det.mic.length}. Felt by accelerometer: ${tap.det.acc.length}.`;
+  $("tapMeter").style.width = Math.min(100, Math.round(tap.level * 100 * 2)) + "%"; tap.level *= 0.5;
+  renderTapMethod();
+}
+function renderTapMethod() {
+  $("tapMethod").textContent = `Method. Microphone: ${tap.engine ? 'the ' + tap.engine : 'an AudioWorklet'} reports the peak of every 128-sample block with the AudioContext frame counter${tap.sampleRate ? ` (${tap.sampleRate} Hz)` : ""}; frame time is mapped to performance.now by adding the median offset between the context clock and performance.now, sampled five times a second from ${tap.offsetSource ?? "getOutputTimestamp (or currentTime if that is unavailable)"}${tap.offsetSpread !== null ? ` (spread ${tap.offsetSpread.toFixed(1)} ms)` : ""}${tap.inputLatencyMs !== null ? `; the input latency Chrome reports, ${tap.inputLatencyMs.toFixed(1)} ms, is subtracted` : tap.ctx ? "; Chrome reported no input latency, so none is subtracted" : ""}. Accelerometer: packet arrival (performance.now) minus each sample's position in the packet by the strap's sample spacing; the signal is the size of the change between consecutive readings. A tap is the first moment the signal passes ${TAP.noiseK} robust standard deviations above its median (at least ${TAP.micMinPeak} of full scale for the microphone, ${TAP.accMinJerkMg} milli-g for the accelerometer). Positive differences mean the accelerometer arrived later. The audio path's own latency is not separated from the result.`;
+}
+$("btnTapStart").onclick = tapStart; $("btnTapStop").onclick = tapStop; $("btnTapClear").onclick = tapClear;
+
+// ---------------------------------------------------------------------------------------------
+// Save session data: a store-only zip written here (no libraries)
+// ---------------------------------------------------------------------------------------------
+const CRC_TABLE = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(bytes) { let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files, when = new Date()) {                 // files: [{name, data: Uint8Array}] -> Uint8Array
+  const enc = new TextEncoder(), parts = [], central = [];
+  const dosTime = (when.getHours() << 11) | (when.getMinutes() << 5) | (when.getSeconds() >> 1);
+  const dosDate = ((when.getFullYear() - 1980) << 9) | ((when.getMonth() + 1) << 5) | when.getDate();
+  let offset = 0;
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0x0800, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dosTime, true); lh.setUint16(12, dosDate, true); lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true);
+    lh.setUint16(26, name.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), name, f.data);
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true); ch.setUint16(8, 0x0800, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, dosTime, true); ch.setUint16(14, dosDate, true); ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true);
+    ch.setUint16(28, name.length, true); ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), name);
+    offset += 30 + name.length + size;
+  }
+  const cdSize = central.reduce((a, p) => a + p.length, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true); end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
+  const all = [...parts, ...central, new Uint8Array(end.buffer)], out = new Uint8Array(all.reduce((a, p) => a + p.length, 0));
+  let at = 0; for (const p of all) { out.set(p, at); at += p.length; }
+  return out;
+}
+const csvCell = (v) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const csvRow = (cells) => cells.map(csvCell).join(",") + "\n";
+function buildFiles() {
+  const enc = new TextEncoder(), files = [];
+  const add = (name, text) => files.push({ name, data: enc.encode(text) });
+  let packets = csvRow(["stream", "strap_time_ns", "sample_count", "arrival_ms", "ecg_uv", "acc_x_mg", "acc_y_mg", "acc_z_mg"]);
+  const chunks = [];
+  for (const p of D.packets) {
+    chunks.push(csvRow([p.s, p.ns, p.n, p.arr.toFixed(3), p.ecg ? Array.from(p.ecg).join(" ") : "", p.x ? Array.from(p.x).join(" ") : "", p.y ? Array.from(p.y).join(" ") : "", p.z ? Array.from(p.z).join(" ") : ""]));
+  }
+  add("packets.csv", packets + chunks.join(""));
+  add("heart_rate.csv", csvRow(["arrival_ms", "flags_hex", "contact_supported", "contact_detected", "heart_rate_bpm", "rr_ms"]) +
+    D.hr.map((h) => csvRow([h.arr.toFixed(3), "0x" + h.flags.toString(16).padStart(2, "0"), h.sup, h.det, h.bpm, h.rr.join(" ")])).join(""));
+  add("events.csv", csvRow(["time_ms", "wall_clock_iso", "kind", "text"]) + D.events.map((e) => csvRow([e.perf.toFixed(3), wallIso(e.perf), e.kind, e.text])).join(""));
+  add("tap_detections.csv", csvRow(["source", "time_ms", "strength", "threshold"]) +
+    tap.det.mic.map((d) => csvRow(["microphone", d.t.toFixed(3), d.strength.toFixed(4), d.threshold.toFixed(4)])).join("") +
+    tap.det.acc.map((d) => csvRow(["accelerometer", d.t.toFixed(3), d.strength.toFixed(2), d.threshold.toFixed(2)])).join(""));
+  add("tap_pairs.csv", csvRow(["tap", "microphone_ms", "accelerometer_ms", "accelerometer_minus_microphone_ms"]) +
+    tap.match.pairs.map((p, i) => csvRow([i + 1, p.micT.toFixed(3), p.accT.toFixed(3), p.diffMs.toFixed(3)])).join(""));
+  add("summary.json", JSON.stringify(summary(), null, 2) + "\n");
+  return files;
+}
+function summary() {
+  const per = (k) => { const st = ST[k]; return { packets: st.packets, samples: st.samples, packets_lost_estimate: st.lost, clock_resets: st.resets, median_interval_ms: median(st.ints), interval_min_ms: Number.isFinite(st.iMin) ? st.iMin : null, interval_max_ms: st.iMax || null,
+    rate_strap_clock_hz: st.denS > 0 ? st.num / st.denS : null, rate_computer_clock_hz: st.denP > 0 ? st.num / st.denP : null, nominal_rate_hz: st.nominalHz }; };
+  return {
+    app: "polar-h10-bench", build: BUILD, saved_at_iso: new Date().toISOString(),
+    time_bases: "arrival_ms and time_ms are performance.now() milliseconds in this page; add performance_time_origin_epoch_ms to get Unix milliseconds. strap_time_ns is the strap's own clock, nanoseconds since 2000-01-01T00:00:00Z, as a string; it stamps the LAST sample of each packet. Accelerometer values in packets.csv are x, y, z in milli-g, oldest sample first; ECG values are microvolts.",
+    performance_time_origin_epoch_ms: performance.timeOrigin,
+    browser: navigator.userAgent, platform: navigator.userAgentData?.platform ?? navigator.platform, language: navigator.language, secure_context: window.isSecureContext,
+    settings: { streams_ticked: sel(), accelerometer_rate_hz: chosenRate(), accelerometer_range_g: chosenRange(), auto_reconnect: $("ckAuto").checked, reconnect_interval_ms: RECONNECT_MS, max_reconnect_tries: MAX_ATTEMPTS,
+      gap_factor: GAP_FACTOR, flat_ecg_peak_to_peak_uv: FLAT_P2P_UV, flat_ecg_min_packets: FLAT_MIN_PACKETS },
+    sessions: D.sessions, mode_now: mode, connection_now: conn, battery_percent: battery,
+    includes_practice_data: D.sessions.some((s) => s.mode === "practice"),
+    counts: { packets_ecg: ST.ecg.packets, packets_acc: ST.acc.packets, heart_rate_notifications: ST.hr.packets, rows_in_packets_csv: D.packets.length, rows_in_heart_rate_csv: D.hr.length, events: D.events.length,
+      tap_detections_microphone: tap.det.mic.length, tap_detections_accelerometer: tap.det.acc.length, tap_pairs: tap.match.pairs.length },
+    streams: { ecg: per("ecg"), accelerometer: per("acc"), heart_rate: per("hr") },
+    tap_test: { median_accelerometer_minus_microphone_ms: tap.match.medianMs, clock_mapping: tap.offsetSource, clock_mapping_spread_ms: tap.offsetSpread, audio_sample_rate_hz: tap.sampleRate, input_latency_subtracted_ms: tap.inputLatencyMs, unmatched_accelerometer: tap.match.accOnly, unmatched_microphone: tap.match.micOnly },
+  };
+}
+function saveSession() {
+  const files = buildFiles(), zip = makeZip(files), d = new Date();
+  const stamp = `${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}-${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+  const practiceOnly = D.sessions.length > 0 && D.sessions.every((s) => s.mode === "practice");
+  const name = `polar-h10-bench-${practiceOnly ? "PRACTICE-" : ""}${stamp}.zip`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([zip], { type: "application/zip" })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  logEvent("info", `Saved ${name}: ${files.length} files, ${(zip.length / 1024).toFixed(0)} KB.`);
+  D.dirty = false;
+  return { name, files: files.length, bytes: zip.length };
+}
+$("btnSave").onclick = saveSession;
+
+// ---------------------------------------------------------------------------------------------
+// Start-up
+// ---------------------------------------------------------------------------------------------
+function readAllColors() { readColors(); const cs = getComputedStyle(document.documentElement); for (const k of ["ecg", "hr", "rr"]) C[k] = cs.getPropertyValue("--" + k).trim(); }
+readAllColors();
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", readAllColors);
+bindSliders();
+resetPipeline(200);
+renderLog(); renderTaps(); renderTapMethod();
+setConn("idle");
+if (!globalThis.navigator?.bluetooth) setStatus("Not connected. This page cannot see Bluetooth here (Chrome on https or localhost is needed). Practice strap still works.", true);
+else setStatus("Not connected.", false);
+setInterval(updateGlance, 250);
+updateGlance();
+requestAnimationFrame(frame);
+
+// Handles for the test script.
+window.polarBench = {
+  drivers: { MockBluetooth, MockPolarDevice, PolarH10Ble },
+  detectTaps, matchTaps, makeZip, crc32, buildFiles, saveSession,
+  state: () => ({ mode, conn, running: { ...running }, attempts: RC.attempts, battery, sessions: D.sessions.length, packets: D.packets.length, hr: D.hr.length,
+    events: D.events.map((e) => ({ kind: e.kind, text: e.text, level: e.level })), stats: Object.fromEntries(Object.entries(ST).map(([k, s]) => [k, { packets: s.packets, lost: s.lost, resets: s.resets, rate: s.denS > 0 ? s.num / s.denS : null, ratePc: s.denP > 0 ? s.num / s.denP : null, lastCount: s.lastCount }])) }),
+};
+})();
+</script>
+</body>
+</html>
