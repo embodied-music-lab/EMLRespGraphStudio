@@ -2,6 +2,8 @@
 
 EML RespGraph Studio records, displays and calibrates respiratory inductance plethysmography (RIP) belt signals in Google Chrome. It supports the RespTrack 16AD and synchronized audio from an audio interface.
 
+![The EML RespGraph Studio welcome tour: the header, the Record/Live and Edit views, the lanes, the settings tray, and where your files go.](docs/media/welcome-tour.gif)
+
 - Open the app: <https://respgraph.studio>
 - License: GPL-3.0-or-later (see `LICENSE.md`); the manual and Quick Start are CC BY-SA 4.0. No support is offered.
 
